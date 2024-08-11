@@ -1,6 +1,7 @@
 import pandas as pd
 import streamlit as st
 from io import BytesIO
+import openpyxl
 
 def parse_gedcom(file_contents):
     individuals = {}
