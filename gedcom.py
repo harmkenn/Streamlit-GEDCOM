@@ -3,6 +3,8 @@ import streamlit as st
 from io import BytesIO
 import openpyxl
 
+st.set_page_config(layout="wide",)
+
 def parse_gedcom(file_contents):
     individuals = {}
     current_individual = None
