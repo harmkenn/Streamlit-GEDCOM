@@ -37,7 +37,7 @@ def parse_gedcom(file_contents):
     return individuals
 
 def main():
-    st.title("Gedcom to Excel")
+    st.title("Gedcom to Excel v1.0")
     st.sidebar.write("Upload a Gedcom file to parse its contents")
 
     uploaded_file = st.sidebar.file_uploader("Choose a Gedcom file", type="ged")
