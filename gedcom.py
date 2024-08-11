@@ -60,16 +60,6 @@ def main():
             # Store the DataFrame in session state
             st.session_state.individual_df = individual_df
 
-            @st.cache_data
-            def convert_df(df):
-                excel_buffer = BytesIO()
-                df.to_excel(excel_buffer, index=False)
-                excel_buffer.seek(0)
-                return excel_buffer
-
-            excel_buffer = convert_df(individual_df)
-
-            
             # Create a GridOptionsBuilder object
             gb = GridOptionsBuilder.from_dataframe(individual_df)
             gb.configure_pagination(paginationAutoPageSize=True)  # Enable pagination
@@ -79,20 +69,22 @@ def main():
             # Build grid options
             gridOptions = gb.build()
 
-            @st.cache(allow_output_mutation=True)
-            def display_aggrid_data(data):
-                AgGrid(data, gridOptions=gridOptions)
-
             # Display the grid
-            display_aggrid_data(individual_df)
+            AgGrid(individual_df, gridOptions=gridOptions)
 
             st.download_button(
                 label="Export to Excel",
-                data=excel_buffer,
+                data=convert_df(individual_df),
                 file_name="individuals.xlsx",
                 mime="application/vnd.ms-excel",
             )
 
+@st.cache_data
+def convert_df(df):
+    excel_buffer = BytesIO()
+    df.to_excel(excel_buffer, index=False)
+    excel_buffer.seek(0)
+    return excel_buffer
 
 if __name__ == "__main__":
     main()
