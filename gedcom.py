@@ -3,10 +3,38 @@ import streamlit as st
 from io import BytesIO
 from st_aggrid import AgGrid, GridOptionsBuilder
 
-st.set_page_config(layout="wide")
+st.set_page_config(layout="wide",)
 
 def parse_gedcom(file_contents):
-    # ... (rest of your code remains the same)
+    individuals = {}
+    current_individual = None
+    current_individual_data = {}
+
+    for line in file_contents.splitlines():
+        line = line.strip()
+        if line.startswith('0 @I'):
+            if current_individual is not None:
+                individuals[current_individual] = current_individual_data
+                current_individual_data = {}
+            current_individual = line.split('@')[1]
+        elif line.startswith('1'):
+            current_tag = line.split(' ')[1]
+            value = line.split(' ')[2:]
+            current_individual_data[current_tag] = value
+                
+        elif line.startswith('2'):
+            add_tag = line.split(' ')[1]
+            current_tag = current_tag + add_tag
+            value = line.split(' ')[2:]
+            current_individual_data[current_tag] = value              
+                
+        else:
+            continue
+
+    if current_individual is not None:
+        individuals[current_individual] = current_individual_data
+
+    return individuals
 
 def main():
     st.title("Gedcom to Excel v1.0")
