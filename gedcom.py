@@ -57,7 +57,7 @@ def main():
 
             individual_df = pd.DataFrame(individual_data)
             st.write("Parsed Data:")
-            st.write(individual_df, width = 1000)
+            st.dataframe(individual_df, use_container_width=True)
 
             @st.cache_data
             def convert_df(df):
