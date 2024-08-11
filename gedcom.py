@@ -21,13 +21,11 @@ def parse_gedcom(file_contents):
             current_tag = line.split(' ')[1]
             value = line.split(' ')[2:]
             current_individual_data[current_tag] = value
-                
         elif line.startswith('2'):
             add_tag = line.split(' ')[1]
             current_tag = current_tag + add_tag
             value = line.split(' ')[2:]
-            current_individual_data[current_tag] = value              
-                
+            current_individual_data[current_tag] = value
         else:
             continue
 
@@ -57,7 +55,7 @@ def main():
 
             individual_df = pd.DataFrame(individual_data)
             st.write("Parsed Data:")
-            st.dataframe(individual_df, use_container_width=True)
+            #st.dataframe(individual_df, use_container_width=True)
 
             # Store the DataFrame in session state
             st.session_state.individual_df = individual_df
@@ -71,13 +69,7 @@ def main():
 
             excel_buffer = convert_df(individual_df)
 
-            st.download_button(
-                label="Export to Excel",
-                data=excel_buffer,
-                file_name="individuals.xlsx",
-                mime="application/vnd.ms-excel",
-            )
-
+            
             # Create a GridOptionsBuilder object
             gb = GridOptionsBuilder.from_dataframe(individual_df)
             gb.configure_pagination(paginationAutoPageSize=True)  # Enable pagination
@@ -87,15 +79,20 @@ def main():
             # Build grid options
             gridOptions = gb.build()
 
-            # Display the grid
-            AgGrid(individual_df, gridOptions=gridOptions)
+            @st.cache(allow_output_mutation=True)
+            def display_aggrid_data(data):
+                AgGrid(data, gridOptions=gridOptions)
 
-            # Add a button to apply filtering and sorting
-            if st.button("Apply"):
-                # Get the filtered data from the grid
-                filtered_df = st.session_state.individual_df
-                # Update the session state with the filtered data
-                st.session_state.individual_df = filtered_df
+            # Display the grid
+            display_aggrid_data(individual_df)
+
+            st.download_button(
+                label="Export to Excel",
+                data=excel_buffer,
+                file_name="individuals.xlsx",
+                mime="application/vnd.ms-excel",
+            )
+
 
 if __name__ == "__main__":
     main()
