@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 from io import BytesIO
-import openpyxl
+from st_aggrid import AgGrid, GridOptionsBuilder
 
 st.set_page_config(layout="wide",)
 
@@ -74,6 +74,18 @@ def main():
                 file_name="individuals.xlsx",
                 mime="application/vnd.ms-excel",
             )
+
+            # Create a GridOptionsBuilder object
+            gb = GridOptionsBuilder.from_dataframe(individual_df)
+            gb.configure_pagination(paginationAutoPageSize=True)  # Enable pagination
+            gb.configure_side_bar()  # Enable a sidebar for filtering
+            gb.configure_default_column(editable=True, groupable=True, sortable=True, filterable=True)
+
+            # Build grid options
+            gridOptions = gb.build()
+
+            # Display the grid
+            AgGrid(individual_df, gridOptions=gridOptions)
 
 if __name__ == "__main__":
     main()
