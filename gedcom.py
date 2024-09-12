@@ -37,16 +37,17 @@ def parse_gedcom(file_contents):
 def main():
     st.title("Gedcom to Excel v1.0")
     st.sidebar.write("Upload a Gedcom file to parse its contents")
-    
-    if st.session_state.ged is None: st.session_state.ged = r"LargeGEDCOM01.ged"
+    if 'ged' not in st.session_state:
+        with open('LargeGEDCOM01.ged', 'r') as f:
+            st.session_state['ged'] = f.read
 
-    st.session_state.ged = st.sidebar.file_uploader("Choose a Gedcom file", type="ged", accept_multiple_files=False, )
+    st.session_state['ged'] = st.sidebar.file_uploader("Choose a Gedcom file", type="ged", accept_multiple_files=False, )
 
-    if st.session_state.ged is not None:
-        file_contents = st.session_state.ged.read().decode('utf-8')
+    if st.session_state['ged'] is not None:
+        file_contents = st.session_state['ged'].read().decode('utf-8')
 
     if st.sidebar.button("Submit"):
-        if st.session_state.ged is not None:
+        if st.session_state['ged'] is not None:
             individuals = parse_gedcom(file_contents)
             individual_data = []
             for individual_id, individual in individuals.items():
