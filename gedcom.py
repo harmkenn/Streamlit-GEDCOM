@@ -35,13 +35,23 @@ def parse_gedcom(file_contents):
     return individuals
 
 def main():
-    st.title("Gedcom to Excel v1.0")
-    st.sidebar.write("Upload a Gedcom file to parse its contents")
+    st.title("File Uploader")
 
-    uploaded_file = st.sidebar.file_uploader("Choose a Gedcom file", type="ged")
+    # Drag-and-Drop
+    uploaded_file_drag = st.file_uploader("Drag and Drop a File")
 
-    if uploaded_file is not None:
-        file_contents = uploaded_file.read().decode('utf-8')
+    # File Selection
+    uploaded_file_select = st.file_uploader("Select a File", type=["ged"])  # Specify allowed file types
+
+    if uploaded_file_drag or uploaded_file_select:
+        if uploaded_file_drag:
+            file_contents = uploaded_file_drag.read().decode('utf-8')
+            st.write("File uploaded using drag-and-drop:")
+            #st.write(file_contents)
+        elif uploaded_file_select:
+            file_contents = uploaded_file_select.read().decode('utf-8')
+            st.write("File uploaded using file selection:")
+            #st.write(file_contents)
 
     if st.sidebar.button("Submit"):
         if uploaded_file is not None:
