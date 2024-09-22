@@ -35,7 +35,7 @@ def parse_gedcom(file_contents):
     return individuals
 
 def main():
-    st.title("Gedcom to Excel v2.0")
+    st.title("Gedcom to Excel v1.0")
     st.sidebar.write("Upload a Gedcom file to parse its contents")
 
     uploaded_file = st.sidebar.file_uploader("Choose a Gedcom file", type="ged")
@@ -54,15 +54,7 @@ def main():
                 individual_data.append(data)
 
             individual_df = pd.DataFrame(individual_data)
-            columns_to_keep = ['ID','NAME','SEX','BIRTDATE','BIRTDATEPLAC','EVEN','FAMS','FAMC','DEAT','DEATDATE','DEATDATEPLAC',
-                               'BAPLDATE','BAPLDATETEMP','CONLDATE','CONLDATETEMP','ENDLDATE','ENDLDATETEMP','BURIDATE','BURIDATEPLAC',
-                               'BURIPLAC']
-            individual_df = individual_df.loc[:, columns_to_keep]
-            individual_df.insert(3, 'BIRTHYEAR', individual_df['BIRTDATE'].str[-4:])
-            individual_df.insert(10, 'DEATHYEAR', individual_df['DEATDATE'].str[-4:])
-            mask = individual_df['DEATHYEAR'].notnull() & individual_df['BIRTHYEAR'].notnull()
-            individual_df.loc[mask, 'AGE'] = pd.to_numeric(individual_df.loc[mask, 'DEATHYEAR']) - pd.to_numeric(individual_df.loc[mask, 'BIRTHYEAR'])
-            st.write("Parsing Data:")
+            st.write("Parsed Data:")
             #st.dataframe(individual_df, use_container_width=True)
 
             # Store the DataFrame in session state
