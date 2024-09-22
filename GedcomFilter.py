@@ -58,10 +58,13 @@ def main():
                                'BAPLDATE','BAPLDATETEMP','CONLDATE','CONLDATETEMP','ENDLDATE','ENDLDATETEMP','BURIDATE','BURIDATEPLAC',
                                'BURIPLAC']
             individual_df = individual_df.loc[:, columns_to_keep]
-            individual_df.insert(3, 'BIRTHYEAR', individual_df['BIRTDATE'].str[-4:])
-            individual_df.insert(10, 'DEATHYEAR', individual_df['DEATDATE'].str[-4:])
+            individual_df.insert(3, 'BIRTHYEAR', individual_df['BIRTDATE'].str.extract('(\d{4}$)'))
+            individual_df.insert(10, 'DEATHYEAR', individual_df['DEATDATE'].str.extract('(\d{4}$)'))
+            individual_df['BIRTHYEAR'] = pd.to_numeric(individual_df['BIRTHYEAR'], errors='coerce')
+            individual_df['DEATHYEAR'] = pd.to_numeric(individual_df['DEATHYEAR'], errors='coerce')
             mask = individual_df['DEATHYEAR'].notnull() & individual_df['BIRTHYEAR'].notnull()
             individual_df.loc[mask, 'AGE'] = pd.to_numeric(individual_df.loc[mask, 'DEATHYEAR']) - pd.to_numeric(individual_df.loc[mask, 'BIRTHYEAR'])
+            individual_df.insert(8, 'CHILDREN', individual_df['FAMS'].map(individual_df['FAMC'].value_counts()))
             st.write("Parsing Data:")
             #st.dataframe(individual_df, use_container_width=True)
 
