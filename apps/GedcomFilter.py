@@ -3,7 +3,8 @@ import streamlit as st
 from io import BytesIO
 from st_aggrid import AgGrid, GridOptionsBuilder
 
-st.set_page_config(layout="wide",)
+# Set the page layout to wide
+st.set_page_config(layout="wide", page_title=f"Gedcoms")
 
 def parse_gedcom(file_contents):
     individuals = {}
