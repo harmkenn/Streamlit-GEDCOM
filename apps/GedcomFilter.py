@@ -55,7 +55,7 @@ def main():
                 individual_data.append(data)
 
             individual_df = pd.DataFrame(individual_data)
-            st.write(individual_df)
+            #st.write(individual_df)
             columns_to_keep = ['ID','NAME','_FSFTID','SEX','BIRTDATE','BIRTDATEPLAC','FAMS','FAMC','DEAT','DEATDATE','DEATDATEPLAC',
                                'BAPLDATE','BAPLDATETEMP','CONLDATE','CONLDATETEMP','ENDLDATE','ENDLDATETEMP','BURIDATE','BURIDATEPLAC',
                                'BURIPLAC']
