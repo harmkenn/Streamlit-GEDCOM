@@ -55,7 +55,7 @@ def main():
                 individual_data.append(data)
 
             individual_df = pd.DataFrame(individual_data)
-            columns_to_keep = ['ID','NAME','SEX','BIRTDATE','BIRTDATEPLAC','EVEN','FAMS','FAMC','DEAT','DEATDATE','DEATDATEPLAC',
+            columns_to_keep = ['ID','NAME','SEX','BIRTDATE','BIRTDATEPLAC','FAMS','FAMC','DEAT','DEATDATE','DEATDATEPLAC',
                                'BAPLDATE','BAPLDATETEMP','CONLDATE','CONLDATETEMP','ENDLDATE','ENDLDATETEMP','BURIDATE','BURIDATEPLAC',
                                'BURIPLAC']
             individual_df = individual_df.loc[:, columns_to_keep]
