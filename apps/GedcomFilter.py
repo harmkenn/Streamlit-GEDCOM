@@ -4,12 +4,13 @@ from io import BytesIO
 from st_aggrid import AgGrid, GridOptionsBuilder
 
 # Set the page layout to wide
-st.set_page_config(layout="wide", page_title=f"Gedcoms")
+st.set_page_config(layout="wide", page_title="Gedcoms")
 
 def parse_gedcom(file_contents):
     individuals = {}
     current_individual = None
     current_individual_data = {}
+    current_tag = None
 
     for line in file_contents.splitlines():
         line = line.strip()
@@ -19,14 +20,16 @@ def parse_gedcom(file_contents):
                 current_individual_data = {}
             current_individual = line.split('@')[1]
         elif line.startswith('1'):
-            current_tag = line.split(' ')[1]
-            value = line.split(' ')[2:]
-            current_individual_data[current_tag] = value
+            parts = line.split(' ')
+            current_tag = parts[1]
+            value = parts[2:]
+            current_individual_data.setdefault(current_tag, []).append(' '.join(value))
         elif line.startswith('2'):
-            add_tag = line.split(' ')[1]
-            current_tag = current_tag + add_tag
-            value = line.split(' ')[2:]
-            current_individual_data[current_tag] = value
+            parts = line.split(' ')
+            add_tag = parts[1]
+            value = parts[2:]
+            full_tag = current_tag + add_tag
+            current_individual_data.setdefault(full_tag, []).append(' '.join(value))
         else:
             continue
 
@@ -35,8 +38,15 @@ def parse_gedcom(file_contents):
 
     return individuals
 
+@st.cache_data
+def convert_df(df):
+    excel_buffer = BytesIO()
+    df.to_excel(excel_buffer, index=False)
+    excel_buffer.seek(0)
+    return excel_buffer
+
 def main():
-    st.title("Gedcom to Excel v2.1")
+    st.title("Gedcom to Excel v2.2")
     st.sidebar.write("Upload a Gedcom file to parse its contents")
 
     uploaded_file = st.sidebar.file_uploader("Choose a Gedcom file", type="ged")
@@ -44,60 +54,74 @@ def main():
     if uploaded_file is not None:
         file_contents = uploaded_file.read().decode('utf-8')
 
-    if st.sidebar.button("Submit"):
-        if uploaded_file is not None:
+        if st.sidebar.button("Submit"):
             individuals = parse_gedcom(file_contents)
             individual_data = []
+            max_fams_count = 0
+
+            # First pass to find the max number of FAMS entries
+            for individual in individuals.values():
+                fams_count = len(individual.get('FAMS', []))
+                if fams_count > max_fams_count:
+                    max_fams_count = fams_count
+
             for individual_id, individual in individuals.items():
                 data = {'ID': individual_id}
                 for tag, values in individual.items():
-                    data[tag] = ' '.join(values)
+                    if tag == 'FAMS':
+                        for i, fam in enumerate(values):
+                            data[f'FAMS_{i+1}'] = fam
+                    else:
+                        data[tag] = ' '.join(values)
                 individual_data.append(data)
 
             individual_df = pd.DataFrame(individual_data)
-            #st.write(individual_df)
-            columns_to_keep = ['ID','NAME','_FSFTID','SEX','BIRTDATE','BIRTDATEPLAC','FAMS','FAMC','DEAT','DEATDATE','DEATDATEPLAC',
-                               'BAPLDATE','BAPLDATETEMP','CONLDATE','CONLDATETEMP','ENDLDATE','ENDLDATETEMP','BURIDATE','BURIDATEPLAC',
-                               'BURIPLAC']
-            individual_df = individual_df.loc[:, columns_to_keep]
-            individual_df.insert(3, 'BIRTHYEAR', individual_df['BIRTDATE'].str.extract('(\d{4}$)'))
-            individual_df.insert(10, 'DEATHYEAR', individual_df['DEATDATE'].str.extract('(\d{4}$)'))
+
+            # Build the list of expected columns
+            fams_columns = [f'FAMS_{i+1}' for i in range(max_fams_count)]
+            columns_to_keep = ['ID', 'NAME', '_FSFTID', 'SEX', 'BIRTDATE', 'BIRTDATEPLAC', 'FAMC', 'DEAT',
+                               'DEATDATE', 'DEATDATEPLAC', 'BAPLDATE', 'BAPLDATETEMP', 'CONLDATE', 'CONLDATETEMP',
+                               'ENDLDATE', 'ENDLDATETEMP', 'BURIDATE', 'BURIDATEPLAC', 'BURIPLAC'] + fams_columns
+
+            individual_df = individual_df.reindex(columns=columns_to_keep)
+
+            # Extract birth and death years
+            individual_df.insert(3, 'BIRTHYEAR', individual_df['BIRTDATE'].str.extract(r'(\d{4})$'))
+            individual_df.insert(10, 'DEATHYEAR', individual_df['DEATDATE'].str.extract(r'(\d{4})$'))
             individual_df['BIRTHYEAR'] = pd.to_numeric(individual_df['BIRTHYEAR'], errors='coerce')
             individual_df['DEATHYEAR'] = pd.to_numeric(individual_df['DEATHYEAR'], errors='coerce')
-            mask = individual_df['DEATHYEAR'].notnull() & individual_df['BIRTHYEAR'].notnull()
-            individual_df.loc[mask, 'AGE'] = pd.to_numeric(individual_df.loc[mask, 'DEATHYEAR']) - pd.to_numeric(individual_df.loc[mask, 'BIRTHYEAR'])
-            individual_df.insert(8, 'CHILDREN', individual_df['FAMS'].map(individual_df['FAMC'].value_counts()))
-            st.write("Parsing Data:")
-            #st.dataframe(individual_df, use_container_width=True)
 
-            # Store the DataFrame in session state
+            # Compute AGE
+            mask = individual_df['DEATHYEAR'].notnull() & individual_df['BIRTHYEAR'].notnull()
+            individual_df.loc[mask, 'AGE'] = individual_df.loc[mask, 'DEATHYEAR'] - individual_df.loc[mask, 'BIRTHYEAR']
+
+            # Count CHILDREN using FAMC appearances
+            famc_counts = individual_df['FAMC'].value_counts()
+            individual_df['CHILDREN'] = individual_df[fams_columns].apply(
+                lambda row: sum(famc_counts.get(fam, 0) for fam in row if pd.notna(fam)),
+                axis=1
+            )
+
+            # Save in session state
             st.session_state.individual_df = individual_df
 
-            # Create a GridOptionsBuilder object
+            # Display grid
+            st.write("Parsed Individuals:")
             gb = GridOptionsBuilder.from_dataframe(individual_df)
-            gb.configure_pagination(paginationAutoPageSize=True)  # Enable pagination
-            gb.configure_side_bar()  # Enable a sidebar for filtering
+            gb.configure_pagination(paginationAutoPageSize=True)
+            gb.configure_side_bar()
             gb.configure_default_column(editable=True, groupable=True, sortable=True, filterable=True)
-
-            # Build grid options
             gridOptions = gb.build()
 
-            # Display the grid
             AgGrid(individual_df, gridOptions=gridOptions)
 
+            # Download button
             st.download_button(
                 label="Export to Excel",
                 data=convert_df(individual_df),
                 file_name="individuals.xlsx",
                 mime="application/vnd.ms-excel",
             )
-
-@st.cache_data
-def convert_df(df):
-    excel_buffer = BytesIO()
-    df.to_excel(excel_buffer, index=False)
-    excel_buffer.seek(0)
-    return excel_buffer
 
 if __name__ == "__main__":
     main()
