@@ -54,9 +54,8 @@ def main():
     if uploaded_file is not None:
         file_contents = uploaded_file.read().decode('utf-8')
 
-        with st.spinner("Parsing GEDCOM file..."):
+        if st.sidebar.button("Submit"):
             individuals = parse_gedcom(file_contents)
-        # Rest of your processing code here
             individual_data = []
             max_fams_count = 0
 
