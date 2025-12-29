@@ -1,6 +1,6 @@
 # pip install -r requirements.txt
 geopandas
-gedcom
+#gedcom
 keras
 levenshtein
 matplotlib
