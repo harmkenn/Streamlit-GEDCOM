@@ -8,7 +8,8 @@ st.set_page_config(layout="wide", page_title=f"Gedcoms")
 # Dictionary that maps .py filenames to user-friendly names
 sub_app_names = {
     'gedcom.py': 'Generic Gedcom',
-    'GedcomFilter.py': 'Special Gedcom'
+    'GedcomFilter.py': 'Special Gedcom',
+    'DisplayAncestry.py': 'Ancestry GEDCOM'
 }
 
 # Get a list of .py files from the SubApps folder
