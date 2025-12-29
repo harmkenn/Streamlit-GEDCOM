@@ -62,7 +62,7 @@ def visualize_family_tree(individuals):
     return dot
 
 def main():
-    st.title("Gedcom to Excel v2.3")
+    st.title("Gedcom from Ancestry v1.0")
     st.sidebar.write("Upload a Gedcom file to parse its contents")
 
     uploaded_file = st.sidebar.file_uploader("Choose a Gedcom file", type="ged")
