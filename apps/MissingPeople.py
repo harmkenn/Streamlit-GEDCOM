@@ -3,9 +3,20 @@ import streamlit as st
 from io import BytesIO
 from st_aggrid import AgGrid, GridOptionsBuilder
 from fuzzywuzzy import fuzz
+from datetime import datetime
 
 # Set the page layout to wide
 st.set_page_config(layout="wide", page_title="Enhanced GEDCOM Comparison Tool v1.1")
+
+def parse_date(date_str):
+    """
+    Parses a GEDCOM date string into a datetime object.
+    Returns None if the date cannot be parsed.
+    """
+    try:
+        return datetime.strptime(date_str, "%d %b %Y")
+    except ValueError:
+        return None
 
 def parse_gedcom(file_contents):
     """
@@ -60,8 +71,8 @@ def compare_individuals(ancestry_individuals, familysearch_individuals):
 
     for ancestry_id, ancestry_individual in ancestry_individuals.items():
         ancestry_name = ' '.join(ancestry_individual.get('NAME', ['Unknown']))
-        ancestry_birth_date = ancestry_individual.get('BIRTDATE', ['Unknown'])[0]
-        ancestry_death_date = ancestry_individual.get('DEATDATE', ['Unknown'])[0]
+        ancestry_birth_date = parse_date(ancestry_individual.get('BIRTDATE', ['Unknown'])[0])
+        ancestry_death_date = parse_date(ancestry_individual.get('DEATDATE', ['Unknown'])[0])
         ancestry_parents = ancestry_individual.get('FAMC', [])
         ancestry_children = ancestry_individual.get('FAMS', [])
         ancestry_spouses = ancestry_individual.get('FAMS', [])
@@ -70,8 +81,8 @@ def compare_individuals(ancestry_individuals, familysearch_individuals):
 
         for familysearch_id, familysearch_individual in familysearch_individuals.items():
             familysearch_name = ' '.join(familysearch_individual.get('NAME', ['Unknown']))
-            familysearch_birth_date = familysearch_individual.get('BIRTDATE', ['Unknown'])[0]
-            familysearch_death_date = familysearch_individual.get('DEATDATE', ['Unknown'])[0]
+            familysearch_birth_date = parse_date(familysearch_individual.get('BIRTDATE', ['Unknown'])[0])
+            familysearch_death_date = parse_date(familysearch_individual.get('DEATDATE', ['Unknown'])[0])
             familysearch_parents = familysearch_individual.get('FAMC', [])
             familysearch_children = familysearch_individual.get('FAMS', [])
             familysearch_spouses = familysearch_individual.get('FAMS', [])
@@ -81,12 +92,12 @@ def compare_individuals(ancestry_individuals, familysearch_individuals):
 
             # Date matching with tolerance
             birth_date_match = (
-                ancestry_birth_date != 'Unknown' and familysearch_birth_date != 'Unknown' and
-                abs(int(ancestry_birth_date.split('-')[0]) - int(familysearch_birth_date.split('-')[0])) <= 1
+                ancestry_birth_date and familysearch_birth_date and
+                abs((ancestry_birth_date - familysearch_birth_date).days) <= 365
             )
             death_date_match = (
-                ancestry_death_date != 'Unknown' and familysearch_death_date != 'Unknown' and
-                abs(int(ancestry_death_date.split('-')[0]) - int(familysearch_death_date.split('-')[0])) <= 1
+                ancestry_death_date and familysearch_death_date and
+                abs((ancestry_death_date - familysearch_death_date).days) <= 365
             )
 
             # Relationship matching
@@ -103,8 +114,8 @@ def compare_individuals(ancestry_individuals, familysearch_individuals):
             missing_individuals.append({
                 'ID': ancestry_id,
                 'NAME': ancestry_name,
-                'BIRTHDATE': ancestry_birth_date,
-                'DEATHDATE': ancestry_death_date,
+                'BIRTHDATE': ancestry_birth_date.strftime("%d %b %Y") if ancestry_birth_date else 'Unknown',
+                'DEATHDATE': ancestry_death_date.strftime("%d %b %Y") if ancestry_death_date else 'Unknown',
                 'PARENTS': ', '.join(ancestry_parents),
                 'CHILDREN': ', '.join(ancestry_children),
                 'SPOUSES': ', '.join(ancestry_spouses)
