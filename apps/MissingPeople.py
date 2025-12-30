@@ -89,7 +89,7 @@ def convert_df_to_excel(df):
     return excel_buffer
 
 def main():
-    st.title("Enhanced GEDCOM Comparison Tool")
+    st.title("Enhanced GEDCOM Comparison Tool v1.3")
     st.sidebar.write("Upload two GEDCOM files to compare individuals")
 
     # File upload for FamilySearch GEDCOM
