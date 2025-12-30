@@ -6,7 +6,7 @@ from fuzzywuzzy import fuzz
 from datetime import datetime
 
 # Set the page layout to wide
-st.set_page_config(layout="wide", page_title="Enhanced GEDCOM Comparison Tool v1.2")
+st.set_page_config(layout="wide", page_title="Enhanced GEDCOM Comparison Tool v1.3")
 
 def parse_date(date_str):
     """
@@ -21,8 +21,10 @@ def parse_date(date_str):
 def parse_gedcom(file_contents):
     """
     Parses a GEDCOM file and extracts individuals and their data.
+    Builds relationships between individuals.
     """
     individuals = {}
+    relationships = {"parents": {}, "children": {}, "spouses": {}}
     current_individual = None
     current_individual_data = {}
     current_tag = None
@@ -45,13 +47,36 @@ def parse_gedcom(file_contents):
             value = parts[2:]
             full_tag = current_tag + add_tag
             current_individual_data.setdefault(full_tag, []).append(' '.join(value))
+        elif line.startswith('1 FAMC'):  # Parent-child relationship
+            parent_id = line.split('@')[1]
+            relationships["children"].setdefault(parent_id, []).append(current_individual)
+            relationships["parents"].setdefault(current_individual, []).append(parent_id)
+        elif line.startswith('1 FAMS'):  # Spouse relationship
+            spouse_id = line.split('@')[1]
+            relationships["spouses"].setdefault(current_individual, []).append(spouse_id)
+            relationships["spouses"].setdefault(spouse_id, []).append(current_individual)
         else:
             continue
 
     if current_individual is not None:
         individuals[current_individual] = current_individual_data
 
-    return individuals
+    return individuals, relationships
+
+def find_descendants(individual_id, relationships, individuals, descendants=None):
+    """
+    Recursively finds all descendants of a given individual.
+    """
+    if descendants is None:
+        descendants = []
+
+    children = relationships["children"].get(individual_id, [])
+    for child_id in children:
+        if child_id not in descendants:
+            descendants.append(child_id)
+            find_descendants(child_id, relationships, individuals, descendants)
+
+    return descendants
 
 @st.cache_data
 def convert_df_to_excel(df):
@@ -62,66 +87,6 @@ def convert_df_to_excel(df):
     df.to_excel(excel_buffer, index=False)
     excel_buffer.seek(0)
     return excel_buffer
-
-def compare_individuals(ancestry_individuals, familysearch_individuals):
-    """
-    Compares individuals from two GEDCOM files based on names, dates, and relationships.
-    """
-    missing_individuals = []
-
-    for ancestry_id, ancestry_individual in ancestry_individuals.items():
-        ancestry_name = ' '.join(ancestry_individual.get('NAME', ['Unknown']))
-        ancestry_birth_date = parse_date(ancestry_individual.get('BIRTDATE', ['Unknown'])[0])
-        ancestry_death_date = parse_date(ancestry_individual.get('DEATDATE', ['Unknown'])[0])
-        ancestry_parents = ancestry_individual.get('FAMC', [])
-        ancestry_children = ancestry_individual.get('FAMS', [])
-        ancestry_spouses = ancestry_individual.get('FAMS', [])
-
-        match_found = False
-
-        for familysearch_id, familysearch_individual in familysearch_individuals.items():
-            familysearch_name = ' '.join(familysearch_individual.get('NAME', ['Unknown']))
-            familysearch_birth_date = parse_date(familysearch_individual.get('BIRTDATE', ['Unknown'])[0])
-            familysearch_death_date = parse_date(familysearch_individual.get('DEATDATE', ['Unknown'])[0])
-            familysearch_parents = familysearch_individual.get('FAMC', [])
-            familysearch_children = familysearch_individual.get('FAMS', [])
-            familysearch_spouses = familysearch_individual.get('FAMS', [])
-
-            # Fuzzy name matching
-            name_similarity = fuzz.ratio(ancestry_name, familysearch_name)
-
-            # Date matching with tolerance
-            birth_date_match = (
-                ancestry_birth_date and familysearch_birth_date and
-                abs((ancestry_birth_date - familysearch_birth_date).days) <= 365
-            )
-            death_date_match = (
-                ancestry_death_date and familysearch_death_date and
-                abs((ancestry_death_date - familysearch_death_date).days) <= 365
-            )
-
-            # Relationship matching
-            parents_match = set(ancestry_parents) & set(familysearch_parents)
-            children_match = set(ancestry_children) & set(familysearch_children)
-            spouses_match = set(ancestry_spouses) & set(familysearch_spouses)
-
-            # Define match criteria
-            if name_similarity >= 80 and (birth_date_match or death_date_match) and (parents_match or children_match or spouses_match):
-                match_found = True
-                break
-
-        if not match_found:
-            missing_individuals.append({
-                'ID': ancestry_id,
-                'NAME': ancestry_name,
-                'BIRTHDATE': ancestry_birth_date.strftime("%d %b %Y") if ancestry_birth_date else 'Unknown',
-                'DEATHDATE': ancestry_death_date.strftime("%d %b %Y") if ancestry_death_date else 'Unknown',
-                'PARENTS': ', '.join(ancestry_parents),
-                'CHILDREN': ', '.join(ancestry_children),
-                'SPOUSES': ', '.join(ancestry_spouses)
-            })
-
-    return pd.DataFrame(missing_individuals)
 
 def main():
     st.title("Enhanced GEDCOM Comparison Tool")
@@ -137,33 +102,62 @@ def main():
             familysearch_contents = familysearch_file.read().decode('utf-8')
             ancestry_contents = ancestry_file.read().decode('utf-8')
 
-            if st.sidebar.button("Compare GEDCOMs"):
-                # Parse both GEDCOM files
-                familysearch_individuals = parse_gedcom(familysearch_contents)
-                ancestry_individuals = parse_gedcom(ancestry_contents)
+            # Parse both GEDCOM files
+            familysearch_individuals, familysearch_relationships = parse_gedcom(familysearch_contents)
+            ancestry_individuals, ancestry_relationships = parse_gedcom(ancestry_contents)
 
-                # Compare individuals
-                missing_individuals_df = compare_individuals(ancestry_individuals, familysearch_individuals)
+            # Select ancestor for filtering
+            st.sidebar.subheader("Filter by Ancestor")
+            ancestor_id = st.sidebar.selectbox(
+                "Select an ancestor from FamilySearch GEDCOM",
+                options=list(familysearch_individuals.keys()),
+                format_func=lambda x: ' '.join(familysearch_individuals[x].get('NAME', ['Unknown']))
+            )
+
+            if ancestor_id:
+                # Find descendants and their spouses
+                descendants = find_descendants(ancestor_id, familysearch_relationships, familysearch_individuals)
+                descendants_data = []
+
+                for descendant_id in descendants:
+                    descendant = familysearch_individuals[descendant_id]
+                    descendant_name = ' '.join(descendant.get('NAME', ['Unknown']))
+                    descendant_birth_date = parse_date(descendant.get('BIRTDATE', ['Unknown'])[0])
+                    descendant_death_date = parse_date(descendant.get('DEATDATE', ['Unknown'])[0])
+                    descendant_spouses = familysearch_relationships["spouses"].get(descendant_id, [])
+
+                    descendants_data.append({
+                        'ID': descendant_id,
+                        'NAME': descendant_name,
+                        'BIRTHDATE': descendant_birth_date.strftime("%d %b %Y") if descendant_birth_date else 'Unknown',
+                        'DEATHDATE': descendant_death_date.strftime("%d %b %Y") if descendant_death_date else 'Unknown',
+                        'SPOUSES': ', '.join([
+                            ' '.join(familysearch_individuals[spouse_id].get('NAME', ['Unknown']))
+                            for spouse_id in descendant_spouses
+                        ])
+                    })
+
+                descendants_df = pd.DataFrame(descendants_data)
 
                 # Display results
-                st.subheader("Individuals Missing from FamilySearch GEDCOM")
-                if missing_individuals_df.empty:
-                    st.write("No missing individuals found.")
+                st.subheader(f"Descendants of {ancestor_id}")
+                if descendants_df.empty:
+                    st.write("No descendants found.")
                 else:
-                    st.write(f"Found {len(missing_individuals_df)} individuals missing from FamilySearch GEDCOM.")
-                    gb = GridOptionsBuilder.from_dataframe(missing_individuals_df)
+                    st.write(f"Found {len(descendants_df)} descendants.")
+                    gb = GridOptionsBuilder.from_dataframe(descendants_df)
                     gb.configure_pagination(paginationAutoPageSize=True)
                     gb.configure_side_bar()
                     gb.configure_default_column(editable=True, groupable=True, sortable=True, filterable=True)
                     gridOptions = gb.build()
 
-                    AgGrid(missing_individuals_df, gridOptions=gridOptions)
+                    AgGrid(descendants_df, gridOptions=gridOptions)
 
-                    # Download button for missing individuals
+                    # Download button for descendants
                     st.download_button(
-                        label="Export Missing Individuals to Excel",
-                        data=convert_df_to_excel(missing_individuals_df),
-                        file_name="missing_individuals.xlsx",
+                        label="Export Descendants to Excel",
+                        data=convert_df_to_excel(descendants_df),
+                        file_name="descendants.xlsx",
                         mime="application/vnd.ms-excel",
                     )
 
