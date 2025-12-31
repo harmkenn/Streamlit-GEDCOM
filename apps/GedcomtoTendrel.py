@@ -3,20 +3,15 @@ import pandas as pd
 from typing import Dict, List, Tuple, Any, Optional
 
 # Set the page layout to wide
-st.set_page_config(layout="wide", page_title="GEDCOM Individual Dataset Generator v2.3")
+st.set_page_config(layout="wide", page_title="GEDCOM Individual Dataset Generator v2.4")
 
 # ---------------------------------------------------------
-# GEDCOM PARSER (IMPROVED)
+# GEDCOM PARSER (UNCHANGED)
 # ---------------------------------------------------------
 
 def parse_gedcom(file_contents: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """
     Parses GEDCOM file contents and extracts individuals and families.
-    
-    IMPROVEMENTS:
-    - Handles multi-line continuation tags (CONC and CONT).
-    - More robust parsing of lines to prevent data bleed.
-    - Simplified logic for saving records.
     """
     individuals: Dict[str, Any] = {}
     families: Dict[str, Any] = {}
@@ -86,19 +81,21 @@ def parse_gedcom(file_contents: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     return individuals, families
 
 # ---------------------------------------------------------
-# DATASET GENERATOR (IMPROVED)
+# DATASET GENERATOR (FIXED)
 # ---------------------------------------------------------
 
 def generate_individual_dataset(individuals: Dict[str, Any], families: Dict[str, Any]) -> pd.DataFrame:
     """
     Builds a clean dataset of individuals with corrected parent lookup.
+
+    IMPROVEMENTS:
+    - Fixed parent lookup by correctly stripping '@' from HUSB/WIFE IDs.
     """
     rows = []
 
-    def get_person_name(ind_id: str) -> Optional[str]:
+    def get_person_name(ind_id: Optional[str]) -> Optional[str]:
         """
         Safely retrieves and cleans a person's name from their ID.
-        Handles cases where the NAME tag is missing.
         """
         if not ind_id:
             return None
@@ -106,22 +103,26 @@ def generate_individual_dataset(individuals: Dict[str, Any], families: Dict[str,
         person_data = individuals.get(ind_id, {})
         name = person_data.get("NAME", [None])[0]
         
-        # --- THIS IS THE FIX ---
-        # Only call .replace() if the name is a valid string
         if isinstance(name, str):
             return name.replace("/", "")
         
-        return None # Return None if name is not a string (i.e., it's None)
-
+        return None
 
     for ind_id, data in individuals.items():
         famc_id = data.get("FAMC", [None])[0]
+        famc_id = famc_id.strip("@") if famc_id else None
 
         father_id, mother_id = None, None
         if famc_id:
             family_data = families.get(famc_id, {})
-            father_id = family_data.get("HUSB", [None])[0]
-            mother_id = family_data.get("WIFE", [None])[0]
+            
+            # --- THIS IS THE FIX ---
+            # Get the raw parent IDs (e.g., '@I2@') and strip the '@'
+            raw_father_id = family_data.get("HUSB", [None])[0]
+            raw_mother_id = family_data.get("WIFE", [None])[0]
+
+            father_id = raw_father_id.strip("@") if raw_father_id else None
+            mother_id = raw_mother_id.strip("@") if raw_mother_id else None
 
         rows.append({
             "ID Number": ind_id,
@@ -129,7 +130,7 @@ def generate_individual_dataset(individuals: Dict[str, Any], families: Dict[str,
             "Gender": data.get("SEX", [None])[0],
             "Birth Date": data.get("BIRT_DATE", [None])[0],
             "Death Date": data.get("DEAT_DATE", [None])[0],
-            "FAMS ID": ", ".join(data.get("FAMS", [])),
+            "FAMS ID": ", ".join(id.strip("@") for id in data.get("FAMS", []) if id),
             "FAMC ID": famc_id,
             "Father's ID Number": father_id,
             "Father's Full Name": get_person_name(father_id),
@@ -139,12 +140,12 @@ def generate_individual_dataset(individuals: Dict[str, Any], families: Dict[str,
     return pd.DataFrame(rows)
 
 # ---------------------------------------------------------
-# STREAMLIT APP (IMPROVED)
+# STREAMLIT APP (UNCHANGED)
 # ---------------------------------------------------------
 
 def main():
     """Main function to run the Streamlit app."""
-    st.title("GEDCOM Individual Dataset Generator v2.3")
+    st.title("GEDCOM Individual Dataset Generator v2.4")
     st.sidebar.header("Instructions")
     st.sidebar.write("Upload a GEDCOM file (.ged) to generate a dataset of individuals.")
     
