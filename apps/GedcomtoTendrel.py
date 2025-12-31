@@ -1,7 +1,8 @@
 import streamlit as st
+import pandas as pd
 
 # Set the page layout to wide
-st.set_page_config(layout="wide", page_title="GEDCOM Descendant Family Tracer v1.3")
+st.set_page_config(layout="wide", page_title="GEDCOM Individual Dataset Generator v1.0")
 
 def parse_gedcom(file_contents):
     """
@@ -47,56 +48,48 @@ def parse_gedcom(file_contents):
 
     return individuals, families
 
-def trace_descendant_families(individual_id, families, individuals, traced_families=None):
+def generate_individual_dataset(individuals, families):
     """
-    Recursively traces all descendant families starting from a specific individual.
+    Generates a dataset of all individuals with the specified columns.
     """
-    if traced_families is None:
-        traced_families = []
+    data = []
 
-    # Find families where the individual is a parent (FAMS)
-    parent_families = individuals.get(individual_id, {}).get('FAMS', [])
-    for family_id in parent_families:
-        if family_id not in traced_families:
-            traced_families.append(family_id)
+    for individual_id, individual_data in individuals.items():
+        full_name = ' '.join(individual_data.get('NAME', ['Unknown']))
+        fams_ids = ', '.join(individual_data.get('FAMS', []))  # Spouse Family IDs
+        famc_ids = ', '.join(individual_data.get('FAMC', []))  # Child Family IDs
 
-            # Get children of the family
-            children = families.get(family_id, {}).get('CHIL', [])
-            for child_id in children:
-                # Recursively trace families of the children
-                trace_descendant_families(child_id, families, individuals, traced_families)
+        # Get parents from the FAMC (Child Family ID)
+        father_id = None
+        father_name = None
+        mother_id = None
+        mother_name = None
 
-    return traced_families
+        for famc_id in individual_data.get('FAMC', []):
+            family = families.get(famc_id, {})
+            father_id = family.get('HUSB', [None])[0]
+            mother_id = family.get('WIFE', [None])[0]
+            if father_id:
+                father_name = ' '.join(individuals.get(father_id, {}).get('NAME', ['Unknown']))
+            if mother_id:
+                mother_name = ' '.join(individuals.get(mother_id, {}).get('NAME', ['Unknown']))
 
-def filter_gedcom(traced_families, families, individuals):
-    """
-    Filters the GEDCOM to include only the traced families and their individuals.
-    """
-    filtered_gedcom = []
+        data.append({
+            'ID Number': individual_id,
+            'Full Name': full_name,
+            'FAMS ID': fams_ids,
+            'FAMC ID': famc_ids,
+            "Father's ID Number": father_id,
+            "Father's Full Name": father_name,
+            "Mother's ID Number": mother_id,
+            "Mother's Full Name": mother_name,
+        })
 
-    # Add individuals linked to traced families
-    for family_id in traced_families:
-        if family_id in families:
-            filtered_gedcom.append(f"0 @{family_id}@ FAM")
-            for tag, values in families[family_id].items():
-                for value in values:
-                    filtered_gedcom.append(f"1 {tag} {value}")
-
-            # Add individuals in the family
-            parents = families[family_id].get('HUSB', []) + families[family_id].get('WIFE', [])
-            children = families[family_id].get('CHIL', [])
-            for individual_id in parents + children:
-                if individual_id in individuals:
-                    filtered_gedcom.append(f"0 @{individual_id}@ INDI")
-                    for tag, values in individuals[individual_id].items():
-                        for value in values:
-                            filtered_gedcom.append(f"1 {tag} {value}")
-
-    return "\n".join(filtered_gedcom)
+    return pd.DataFrame(data)
 
 def main():
-    st.title("GEDCOM Descendant Family Tracer")
-    st.sidebar.write("Upload a GEDCOM file and trace descendant families")
+    st.title("GEDCOM Individual Dataset Generator")
+    st.sidebar.write("Upload a GEDCOM file to generate a dataset of individuals")
 
     # File upload for GEDCOM
     gedcom_file = st.sidebar.file_uploader("Upload GEDCOM File", type=["ged"])
@@ -109,32 +102,21 @@ def main():
             # Parse the GEDCOM file
             individuals, families = parse_gedcom(gedcom_contents)
 
-            # Select starting individual for tracing
-            st.sidebar.subheader("Select Starting Individual")
-            start_individual_id = st.sidebar.selectbox(
-                "Select an individual",
-                options=list(individuals.keys()),
-                format_func=lambda x: ' '.join(individuals[x].get('NAME', ['Unknown']))
+            # Generate the dataset
+            dataset = generate_individual_dataset(individuals, families)
+
+            # Display the dataset
+            st.subheader("Generated Dataset of Individuals")
+            st.dataframe(dataset)
+
+            # Download button for the dataset
+            csv_data = dataset.to_csv(index=False)
+            st.download_button(
+                label="Download Dataset as CSV",
+                data=csv_data,
+                file_name="individual_dataset.csv",
+                mime="text/csv",
             )
-
-            if start_individual_id:
-                # Trace descendant families
-                traced_families = trace_descendant_families(start_individual_id, families, individuals)
-
-                # Filter GEDCOM
-                filtered_gedcom = filter_gedcom(traced_families, families, individuals)
-
-                # Display traced family tree
-                st.subheader(f"Traced Family Tree Starting from Individual {start_individual_id}")
-                st.text_area("Filtered GEDCOM", value=filtered_gedcom, height=400)
-
-                # Download button for filtered GEDCOM
-                st.download_button(
-                    label="Download Filtered GEDCOM",
-                    data=filtered_gedcom,
-                    file_name="filtered_descendant_tree.ged",
-                    mime="text/plain",
-                )
 
         except Exception as e:
             st.error(f"Error processing GEDCOM file: {e}")
