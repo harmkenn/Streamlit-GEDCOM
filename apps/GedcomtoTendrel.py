@@ -1,101 +1,105 @@
 import streamlit as st
-from io import StringIO
-from datetime import datetime
 
 # Set the page layout to wide
-st.set_page_config(layout="wide", page_title="GEDCOM Descendant Filter Tool")
+st.set_page_config(layout="wide", page_title="GEDCOM Family Tree Tracer")
 
 def parse_gedcom(file_contents):
     """
-    Parses a GEDCOM file and extracts individuals and their relationships.
+    Parses a GEDCOM file and extracts individuals and families.
     """
     individuals = {}
-    relationships = {"parents": {}, "children": {}, "spouses": {}}
+    families = {}
     current_individual = None
-    current_individual_data = {}
+    current_family = None
+    current_data = {}
     current_tag = None
 
     for line in file_contents.splitlines():
         line = line.strip()
         if line.startswith('0 @I'):  # Start of a new individual
             if current_individual is not None:
-                individuals[current_individual] = current_individual_data
-                current_individual_data = {}
+                individuals[current_individual] = current_data
+                current_data = {}
             current_individual = line.split('@')[1]
+        elif line.startswith('0 @F'):  # Start of a new family
+            if current_family is not None:
+                families[current_family] = current_data
+                current_data = {}
+            current_family = line.split('@')[1]
         elif line.startswith('1'):  # Level 1 tags
             parts = line.split(' ')
             current_tag = parts[1]
             value = parts[2:]
-            current_individual_data.setdefault(current_tag, []).append(' '.join(value))
+            current_data.setdefault(current_tag, []).append(' '.join(value))
         elif line.startswith('2'):  # Level 2 tags
             parts = line.split(' ')
             add_tag = parts[1]
             value = parts[2:]
             full_tag = current_tag + add_tag
-            current_individual_data.setdefault(full_tag, []).append(' '.join(value))
-        elif line.startswith('1 FAMC'):  # Parent-child relationship
-            parent_id = line.split('@')[1]
-            relationships["children"].setdefault(parent_id, []).append(current_individual)
-            relationships["parents"].setdefault(current_individual, []).append(parent_id)
-        elif line.startswith('1 FAMS'):  # Spouse relationship
-            spouse_id = line.split('@')[1]
-            relationships["spouses"].setdefault(current_individual, []).append(spouse_id)
-            relationships["spouses"].setdefault(spouse_id, []).append(current_individual)
+            current_data.setdefault(full_tag, []).append(' '.join(value))
         else:
             continue
 
     if current_individual is not None:
-        individuals[current_individual] = current_individual_data
+        individuals[current_individual] = current_data
+    if current_family is not None:
+        families[current_family] = current_data
 
-    return individuals, relationships
+    return individuals, families
 
-def find_descendants(individual_id, relationships, descendants=None):
+def trace_family_tree(start_family_id, families, individuals, traced_families=None):
     """
-    Recursively finds all descendants of a given individual.
+    Recursively traces the family tree starting from a specific family.
     """
-    if descendants is None:
-        descendants = []
+    if traced_families is None:
+        traced_families = []
 
-    children = relationships["children"].get(individual_id, [])
+    if start_family_id not in families:
+        return traced_families
+
+    # Add the current family to the traced families
+    traced_families.append(start_family_id)
+
+    # Get children of the current family
+    children = families[start_family_id].get('CHIL', [])
     for child_id in children:
-        if child_id not in descendants:
-            descendants.append(child_id)
-            find_descendants(child_id, relationships, descendants)
+        # Find the families where the child is a parent (FAMS)
+        child_families = individuals.get(child_id, {}).get('FAMS', [])
+        for child_family_id in child_families:
+            if child_family_id not in traced_families:
+                trace_family_tree(child_family_id, families, individuals, traced_families)
 
-    return descendants
+    return traced_families
 
-def filter_gedcom(individuals, relationships, ancestor_id):
+def filter_gedcom(traced_families, families, individuals):
     """
-    Filters the GEDCOM to include only the ancestor, their descendants, and spouses.
+    Filters the GEDCOM to include only the traced families and their individuals.
     """
-    descendants = find_descendants(ancestor_id, relationships)
-    filtered_ids = set(descendants)
-    filtered_ids.add(ancestor_id)  # Include the ancestor
-
-    # Add spouses of descendants
-    for descendant_id in descendants:
-        spouses = relationships["spouses"].get(descendant_id, [])
-        filtered_ids.update(spouses)
-
-    # Build filtered GEDCOM
     filtered_gedcom = []
-    for individual_id, individual_data in individuals.items():
-        if individual_id in filtered_ids:
-            filtered_gedcom.append(f"0 @{individual_id}@ INDI")
-            for tag, values in individual_data.items():
+
+    # Add individuals linked to traced families
+    for family_id in traced_families:
+        if family_id in families:
+            filtered_gedcom.append(f"0 @{family_id}@ FAM")
+            for tag, values in families[family_id].items():
                 for value in values:
                     filtered_gedcom.append(f"1 {tag} {value}")
-            # Add relationships
-            for parent_id in relationships["parents"].get(individual_id, []):
-                filtered_gedcom.append(f"1 FAMC @{parent_id}@")
-            for spouse_id in relationships["spouses"].get(individual_id, []):
-                filtered_gedcom.append(f"1 FAMS @{spouse_id}@")
+
+            # Add individuals in the family
+            parents = families[family_id].get('HUSB', []) + families[family_id].get('WIFE', [])
+            children = families[family_id].get('CHIL', [])
+            for individual_id in parents + children:
+                if individual_id in individuals:
+                    filtered_gedcom.append(f"0 @{individual_id}@ INDI")
+                    for tag, values in individuals[individual_id].items():
+                        for value in values:
+                            filtered_gedcom.append(f"1 {tag} {value}")
 
     return "\n".join(filtered_gedcom)
 
 def main():
-    st.title("GEDCOM Descendant Filter Tool")
-    st.sidebar.write("Upload a GEDCOM file and filter by ancestor")
+    st.title("GEDCOM Family Tree Tracer")
+    st.sidebar.write("Upload a GEDCOM file and trace a family tree")
 
     # File upload for GEDCOM
     gedcom_file = st.sidebar.file_uploader("Upload GEDCOM File", type=["ged"])
@@ -106,29 +110,32 @@ def main():
             gedcom_contents = gedcom_file.read().decode('utf-8')
 
             # Parse the GEDCOM file
-            individuals, relationships = parse_gedcom(gedcom_contents)
+            individuals, families = parse_gedcom(gedcom_contents)
 
-            # Select ancestor for filtering
-            st.sidebar.subheader("Select Ancestor")
-            ancestor_id = st.sidebar.selectbox(
-                "Select an ancestor",
-                options=list(individuals.keys()),
-                format_func=lambda x: ' '.join(individuals[x].get('NAME', ['Unknown']))
+            # Select starting family for tracing
+            st.sidebar.subheader("Select Starting Family")
+            start_family_id = st.sidebar.selectbox(
+                "Select a family",
+                options=list(families.keys()),
+                format_func=lambda x: f"Family {x} ({', '.join(families[x].get('HUSB', []) + families[x].get('WIFE', []))})"
             )
 
-            if ancestor_id:
-                # Filter GEDCOM
-                filtered_gedcom = filter_gedcom(individuals, relationships, ancestor_id)
+            if start_family_id:
+                # Trace family tree
+                traced_families = trace_family_tree(start_family_id, families, individuals)
 
-                # Display filtered GEDCOM
-                st.subheader(f"Filtered GEDCOM for Ancestor: {' '.join(individuals[ancestor_id].get('NAME', ['Unknown']))}")
+                # Filter GEDCOM
+                filtered_gedcom = filter_gedcom(traced_families, families, individuals)
+
+                # Display traced family tree
+                st.subheader(f"Traced Family Tree Starting from Family {start_family_id}")
                 st.text_area("Filtered GEDCOM", value=filtered_gedcom, height=400)
 
                 # Download button for filtered GEDCOM
                 st.download_button(
                     label="Download Filtered GEDCOM",
                     data=filtered_gedcom,
-                    file_name="filtered_gedcom.ged",
+                    file_name="filtered_family_tree.ged",
                     mime="text/plain",
                 )
 
