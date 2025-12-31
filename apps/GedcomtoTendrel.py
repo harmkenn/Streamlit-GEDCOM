@@ -3,7 +3,7 @@ import pandas as pd
 from typing import Dict, List, Tuple, Any, Optional
 
 # Set the page layout to wide
-st.set_page_config(layout="wide", page_title="GEDCOM Individual Dataset Generator v2.4")
+st.set_page_config(layout="wide", page_title="GEDCOM Individual Dataset Generator v2.5")
 
 # ---------------------------------------------------------
 # GEDCOM PARSER (UNCHANGED)
@@ -81,15 +81,12 @@ def parse_gedcom(file_contents: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     return individuals, families
 
 # ---------------------------------------------------------
-# DATASET GENERATOR (FIXED)
+# DATASET GENERATOR (UNCHANGED)
 # ---------------------------------------------------------
 
 def generate_individual_dataset(individuals: Dict[str, Any], families: Dict[str, Any]) -> pd.DataFrame:
     """
     Builds a clean dataset of individuals with corrected parent lookup.
-
-    IMPROVEMENTS:
-    - Fixed parent lookup by correctly stripping '@' from HUSB/WIFE IDs.
     """
     rows = []
 
@@ -109,15 +106,13 @@ def generate_individual_dataset(individuals: Dict[str, Any], families: Dict[str,
         return None
 
     for ind_id, data in individuals.items():
-        famc_id = data.get("FAMC", [None])[0]
-        famc_id = famc_id.strip("@") if famc_id else None
+        famc_id_raw = data.get("FAMC", [None])[0]
+        famc_id = famc_id_raw.strip("@") if famc_id_raw else None
 
         father_id, mother_id = None, None
         if famc_id:
             family_data = families.get(famc_id, {})
             
-            # --- THIS IS THE FIX ---
-            # Get the raw parent IDs (e.g., '@I2@') and strip the '@'
             raw_father_id = family_data.get("HUSB", [None])[0]
             raw_mother_id = family_data.get("WIFE", [None])[0]
 
@@ -140,12 +135,76 @@ def generate_individual_dataset(individuals: Dict[str, Any], families: Dict[str,
     return pd.DataFrame(rows)
 
 # ---------------------------------------------------------
-# STREAMLIT APP (UNCHANGED)
+# DESCENDANT FINDER (NEW)
+# ---------------------------------------------------------
+
+def find_all_descendants(
+    start_person_id: str,
+    individuals: Dict[str, Any],
+    families: Dict[str, Any],
+    max_generations: int = 7
+) -> set:
+    """
+    Finds all descendants of a given person up to a maximum number of generations.
+    Uses a breadth-first search (BFS) to gather descendants, including spouses.
+    """
+    if not start_person_id:
+        return set()
+
+    descendant_ids = set()
+    queue = [(start_person_id, 1)]  # (person_id, generation)
+    processed_ids = set()  # To avoid redundant processing
+
+    while queue:
+        current_id, generation = queue.pop(0)
+
+        if current_id in processed_ids:
+            continue
+        
+        processed_ids.add(current_id)
+        descendant_ids.add(current_id)
+
+        # Stop if we have reached the generation limit
+        if generation >= max_generations:
+            continue
+
+        # Find the families where the current person is a parent (FAMS)
+        person_data = individuals.get(current_id, {})
+        fams_ids = person_data.get("FAMS", [])
+
+        for fam_id in fams_ids:
+            fam_id = fam_id.strip('@')
+            if not fam_id: continue
+            
+            family_data = families.get(fam_id, {})
+
+            # Add the spouse(s) to the descendant list
+            husband_id = (family_data.get("HUSB", [None])[0] or "").strip('@')
+            wife_id = (family_data.get("WIFE", [None])[0] or "").strip('@')
+
+            if husband_id and husband_id != current_id:
+                descendant_ids.add(husband_id)
+            if wife_id and wife_id != current_id:
+                descendant_ids.add(wife_id)
+
+            # Find and queue the children for the next generation
+            children_ids = family_data.get("CHIL", [])
+            for child_id in children_ids:
+                child_id = child_id.strip('@')
+                if child_id:
+                    descendant_ids.add(child_id)
+                    if child_id not in processed_ids:
+                         queue.append((child_id, generation + 1))
+    
+    return descendant_ids
+
+# ---------------------------------------------------------
+# STREAMLIT APP (UPDATED)
 # ---------------------------------------------------------
 
 def main():
     """Main function to run the Streamlit app."""
-    st.title("GEDCOM Individual Dataset Generator v2.4")
+    st.title("GEDCOM Individual Dataset Generator v2.5")
     st.sidebar.header("Instructions")
     st.sidebar.write("Upload a GEDCOM file (.ged) to generate a dataset of individuals.")
     
@@ -169,16 +228,63 @@ def main():
             with st.spinner("Generating dataset..."):
                 dataset = generate_individual_dataset(individuals, families)
 
-            st.subheader("Generated Dataset of Individuals")
+            st.subheader("Generated Dataset of All Individuals")
             st.dataframe(dataset, use_container_width=True)
 
             csv_data = dataset.to_csv(index=False).encode('utf-8')
             st.download_button(
-                label="Download Dataset as CSV",
+                label="Download Full Dataset as CSV",
                 data=csv_data,
                 file_name="individual_dataset.csv",
                 mime="text/csv",
+                key="download-full"
             )
+            
+            # --- NEW SECTION for Descendant Analysis ---
+            st.markdown("---")
+            st.subheader("Descendant Analysis")
+            
+            name_list = dataset.dropna(subset=['Full Name']).apply(
+                lambda row: f"{row['Full Name']} (ID: {row['ID Number']})", axis=1
+            ).tolist()
+            
+            if not name_list:
+                st.warning("No individuals with names found to select for descendant analysis.")
+                return
+
+            selected_person_str = st.selectbox(
+                "Select an individual to find their descendants (up to 7 generations):",
+                options=name_list
+            )
+
+            if selected_person_str:
+                start_id = selected_person_str.split('(ID: ')[1].replace(')', '')
+                
+                with st.spinner(f"Finding descendants of {start_id}..."):
+                    descendant_ids = find_all_descendants(
+                        start_person_id=start_id,
+                        individuals=individuals,
+                        families=families,
+                        max_generations=7
+                    )
+                
+                if descendant_ids:
+                    descendant_df = dataset[dataset['ID Number'].isin(descendant_ids)].copy()
+                    
+                    st.write(f"Found **{len(descendant_df)}** descendants (including spouses) for the selected individual.")
+                    st.dataframe(descendant_df, use_container_width=True)
+
+                    csv_desc_data = descendant_df.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label="Download Descendant Dataset as CSV",
+                        data=csv_desc_data,
+                        file_name=f"descendants_of_{start_id}.csv",
+                        mime="text/csv",
+                        key="download-desc"
+                    )
+                else:
+                    st.info("No descendants found for the selected individual.")
+
         except Exception as e:
             st.error(f"An unexpected error occurred: {e}")
             st.exception(e)
