@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 
 # Set the page layout to wide
-st.set_page_config(layout="wide", page_title="GEDCOM Individual Dataset Generator v1.1")
+st.set_page_config(layout="wide", page_title="GEDCOM Individual Dataset Generator v1.4")
 
 def parse_gedcom(file_contents):
     """
@@ -62,16 +62,17 @@ def generate_individual_dataset(individuals, families):
         fams_ids = ', '.join(individual_data.get('FAMS', []))  # Spouse Family IDs
         famc_ids = ', '.join(individual_data.get('FAMC', []))  # Child Family IDs
 
-        # Get parents from the FAMC (Child Family ID)
+        # Initialize parent information
         father_id = None
         father_name = None
         mother_id = None
         mother_name = None
 
+        # Reverse lookup for parents using FAMC ID
         for famc_id in individual_data.get('FAMC', []):
             family = families.get(famc_id, {})
-            father_id = family.get('HUSB', [None])[0]
-            mother_id = family.get('WIFE', [None])[0]
+            father_id = family.get('HUSB', [None])[0]  # Father's ID
+            mother_id = family.get('WIFE', [None])[0]  # Mother's ID
             if father_id:
                 father_name = ' '.join(individuals.get(father_id, {}).get('NAME', ['Unknown']))
             if mother_id:
