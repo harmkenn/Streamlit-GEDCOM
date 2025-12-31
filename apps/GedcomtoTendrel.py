@@ -2,131 +2,138 @@ import streamlit as st
 import pandas as pd
 
 # Set the page layout to wide
-st.set_page_config(layout="wide", page_title="GEDCOM Individual Dataset Generator v1.6") 
+st.set_page_config(layout="wide", page_title="GEDCOM Individual Dataset Generator v2.0")
 
 def parse_gedcom(file_contents):
     """
     Parses a GEDCOM file and extracts individuals and families.
+    Ensures clean separation between record types and avoids data bleed.
     """
     individuals = {}
     families = {}
-    current_individual = None
-    current_family = None
+
+    current_id = None
+    current_type = None
     current_data = {}
     current_tag = None
 
-    for line in file_contents.splitlines():
-        line = line.strip()
-        if line.startswith('0 @I'):  # Start of a new individual
-            if current_individual is not None:
-                individuals[current_individual] = current_data
-                current_data = {}
-            current_individual = line.split('@')[1]
-        elif line.startswith('0 @F'):  # Start of a new family
-            if current_family is not None:
-                families[current_family] = current_data
-                current_data = {}
-            current_family = line.split('@')[1]
-        elif line.startswith('1'):  # Level 1 tags
-            parts = line.split(' ')
-            current_tag = parts[1]
-            value = parts[2:]
-            current_data.setdefault(current_tag, []).append(' '.join(value))
-        elif line.startswith('2'):  # Level 2 tags
-            parts = line.split(' ')
-            add_tag = parts[1]
-            value = parts[2:]
-            full_tag = current_tag + add_tag
-            current_data.setdefault(full_tag, []).append(' '.join(value))
-        else:
+    for raw_line in file_contents.splitlines():
+        line = raw_line.strip()
+
+        # Start of a new record
+        if line.startswith("0 @"):
+            # Save previous record
+            if current_id and current_type == "INDI":
+                individuals[current_id] = current_data
+            elif current_id and current_type == "FAM":
+                families[current_id] = current_data
+
+            # Reset for new record
+            parts = line.split(" ")
+            current_id = parts[1].strip("@")
+            current_type = parts[2] if len(parts) > 2 else None
+            current_data = {}
+            current_tag = None
             continue
 
-    if current_individual is not None:
-        individuals[current_individual] = current_data
-    if current_family is not None:
-        families[current_family] = current_data
+        # Level 1 tag
+        if line.startswith("1 "):
+            parts = line.split(" ")
+            current_tag = parts[1]
+            value = " ".join(parts[2:])
+            current_data.setdefault(current_tag, []).append(value)
+            continue
+
+        # Level 2 tag
+        if line.startswith("2 "):
+            parts = line.split(" ")
+            sub_tag = parts[1]
+            value = " ".join(parts[2:])
+            full_tag = f"{current_tag}{sub_tag}"
+            current_data.setdefault(full_tag, []).append(value)
+            continue
+
+    # Save last record
+    if current_id and current_type == "INDI":
+        individuals[current_id] = current_data
+    elif current_id and current_type == "FAM":
+        families[current_id] = current_data
 
     return individuals, families
 
+
 def generate_individual_dataset(individuals, families):
     """
-    Generates a dataset of all individuals with the specified columns.
+    Builds a clean dataset of individuals with parent lookup.
     """
-    data = []
+    rows = []
 
-    for individual_id, individual_data in individuals.items():
-        full_name = ' '.join(individual_data.get('NAME', ['Unknown']))
-        gender = individual_data.get('SEX', ['Unknown'])[0]  # Extract gender
-        birth_date = individual_data.get('BIRTDATE', ['Unknown'])[0]  # Extract birth date
-        death_date = individual_data.get('DEATDATE', ['Unknown'])[0]  # Extract death date
-        fams_ids = ', '.join(individual_data.get('FAMS', []))  # Spouse Family IDs
-        famc_ids = ', '.join(individual_data.get('FAMC', []))  # Child Family IDs
+    for ind_id, data in individuals.items():
+        full_name = " ".join(data.get("NAME", ["Unknown"]))
+        gender = data.get("SEX", ["Unknown"])[0]
+        birth_date = data.get("BIRTDATE", ["Unknown"])[0]
+        death_date = data.get("DEATDATE", ["Unknown"])[0]
 
-        # Initialize parent information
-        father_id = None
-        father_name = None
-        mother_id = None
-        mother_name = None
+        fams_ids = ", ".join(data.get("FAMS", []))
+        famc_ids = ", ".join(data.get("FAMC", []))
 
-        # Reverse lookup for parents using FAMC ID
-        for famc_id in individual_data.get('FAMC', []):
-            family = families.get(famc_id, {})
-            father_id = family.get('HUSB', [None])[0]  # Father's ID
-            mother_id = family.get('WIFE', [None])[0]  # Mother's ID
+        # Parent lookup
+        father_id = mother_id = None
+        father_name = mother_name = None
+
+        for famc in data.get("FAMC", []):
+            fam = families.get(famc, {})
+            father_id = fam.get("HUSB", [None])[0]
+            mother_id = fam.get("WIFE", [None])[0]
+
             if father_id:
-                father_name = ' '.join(individuals.get(father_id, {}).get('NAME', ['Unknown']))
+                father_name = " ".join(individuals.get(father_id, {}).get("NAME", ["Unknown"]))
             if mother_id:
-                mother_name = ' '.join(individuals.get(mother_id, {}).get('NAME', ['Unknown']))
+                mother_name = " ".join(individuals.get(mother_id, {}).get("NAME", ["Unknown"]))
 
-        data.append({
-            'ID Number': individual_id,
-            'Full Name': full_name,
-            'Gender': gender,  # Add gender column
-            'Birth Date': birth_date,  # Add birth date column
-            'Death Date': death_date,  # Add death date column
-            'FAMS ID': fams_ids,
-            'FAMC ID': famc_ids,
+        rows.append({
+            "ID Number": ind_id,
+            "Full Name": full_name,
+            "Gender": gender,
+            "Birth Date": birth_date,
+            "Death Date": death_date,
+            "FAMS ID": fams_ids,
+            "FAMC ID": famc_ids,
             "Father's ID Number": father_id,
             "Father's Full Name": father_name,
             "Mother's ID Number": mother_id,
             "Mother's Full Name": mother_name,
         })
 
-    return pd.DataFrame(data)
+    return pd.DataFrame(rows)
+
 
 def main():
-    st.title("GEDCOM Individual Dataset Generator v1.6")
+    st.title("GEDCOM Individual Dataset Generator v2.0")
     st.sidebar.write("Upload a GEDCOM file to generate a dataset of individuals")
 
-    # File upload for GEDCOM
-    gedcom_file = st.sidebar.file_uploader("Upload GEDCOM File", type=["ged"])
+    uploaded = st.sidebar.file_uploader("Upload GEDCOM File", type=["ged"])
 
-    if gedcom_file:
+    if uploaded:
         try:
-            # Read the uploaded file
-            gedcom_contents = gedcom_file.read().decode('utf-8')
+            contents = uploaded.read().decode("utf-8")
 
-            # Parse the GEDCOM file
-            individuals, families = parse_gedcom(gedcom_contents)
-
-            # Generate the dataset
+            individuals, families = parse_gedcom(contents)
             dataset = generate_individual_dataset(individuals, families)
 
-            # Display the dataset
             st.subheader("Generated Dataset of Individuals")
-            st.dataframe(dataset)
+            st.dataframe(dataset, use_container_width=True)
 
-            # Download button for the dataset
-            csv_data = dataset.to_csv(index=False)
             st.download_button(
                 label="Download Dataset as CSV",
-                data=csv_data,
+                data=dataset.to_csv(index=False),
                 file_name="individual_dataset.csv",
                 mime="text/csv",
             )
 
         except Exception as e:
             st.error(f"Error processing GEDCOM file: {e}")
+
 
 if __name__ == "__main__":
     main()
