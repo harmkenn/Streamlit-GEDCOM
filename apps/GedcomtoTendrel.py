@@ -1,9 +1,10 @@
 import streamlit as st
 import pandas as pd
 from typing import Dict, List, Tuple, Any, Optional
+import re
 
 # Set the page layout to wide
-st.set_page_config(layout="wide", page_title="GEDCOM Individual Dataset Generator v2.5")
+st.set_page_config(layout="wide", page_title="GEDCOM Individual Dataset Generator v2.6")
 
 # ---------------------------------------------------------
 # GEDCOM PARSER (UNCHANGED)
@@ -81,29 +82,46 @@ def parse_gedcom(file_contents: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     return individuals, families
 
 # ---------------------------------------------------------
-# DATASET GENERATOR (UNCHANGED)
+# HELPER FUNCTION FOR DATE FORMATTING (NEW)
+# ---------------------------------------------------------
+
+def format_gedcom_date(date_str: Optional[str]) -> Optional[str]:
+    """
+    Parses various GEDCOM date formats into a single 'YYYY-MM-DD' format.
+    Handles partial dates by padding with '01' for month/day.
+    """
+    if not date_str:
+        return None
+
+    # Clean the string from common GEDCOM keywords and ranges
+    clean_date_str = re.sub(r'^(ABT|EST|CAL|INT|BEF|AFT|FROM|TO)\s+', '', date_str.strip(), flags=re.IGNORECASE)
+    clean_date_str = re.sub(r'^BET\s+(.*?)\s+AND.*', r'\1', clean_date_str, flags=re.IGNORECASE)
+    
+    # Use pandas to_datetime which is powerful and can handle many formats.
+    # errors='coerce' will turn unparseable dates into NaT (Not a Time).
+    dt_object = pd.to_datetime(clean_date_str, errors='coerce')
+    
+    # If we have a valid datetime object, format it. Otherwise, return None.
+    if pd.notna(dt_object):
+        return dt_object.strftime('%Y-%m-%d')
+    
+    return None
+
+# ---------------------------------------------------------
+# DATASET GENERATOR (UPDATED)
 # ---------------------------------------------------------
 
 def generate_individual_dataset(individuals: Dict[str, Any], families: Dict[str, Any]) -> pd.DataFrame:
     """
-    Builds a clean dataset of individuals with corrected parent lookup.
+    Builds a clean dataset of individuals with date formatting and parent lookup.
     """
     rows = []
 
     def get_person_name(ind_id: Optional[str]) -> Optional[str]:
-        """
-        Safely retrieves and cleans a person's name from their ID.
-        """
-        if not ind_id:
-            return None
-        
+        if not ind_id: return None
         person_data = individuals.get(ind_id, {})
         name = person_data.get("NAME", [None])[0]
-        
-        if isinstance(name, str):
-            return name.replace("/", "")
-        
-        return None
+        return name.replace("/", "") if isinstance(name, str) else None
 
     for ind_id, data in individuals.items():
         famc_id_raw = data.get("FAMC", [None])[0]
@@ -112,10 +130,8 @@ def generate_individual_dataset(individuals: Dict[str, Any], families: Dict[str,
         father_id, mother_id = None, None
         if famc_id:
             family_data = families.get(famc_id, {})
-            
             raw_father_id = family_data.get("HUSB", [None])[0]
             raw_mother_id = family_data.get("WIFE", [None])[0]
-
             father_id = raw_father_id.strip("@") if raw_father_id else None
             mother_id = raw_mother_id.strip("@") if raw_mother_id else None
 
@@ -123,8 +139,9 @@ def generate_individual_dataset(individuals: Dict[str, Any], families: Dict[str,
             "ID Number": ind_id,
             "Full Name": get_person_name(ind_id),
             "Gender": data.get("SEX", [None])[0],
-            "Birth Date": data.get("BIRT_DATE", [None])[0],
-            "Death Date": data.get("DEAT_DATE", [None])[0],
+            # --- DATE FORMATTING APPLIED HERE ---
+            "Birth Date": format_gedcom_date(data.get("BIRT_DATE", [None])[0]),
+            "Death Date": format_gedcom_date(data.get("DEAT_DATE", [None])[0]),
             "FAMS ID": ", ".join(id.strip("@") for id in data.get("FAMS", []) if id),
             "FAMC ID": famc_id,
             "Father's ID Number": father_id,
@@ -135,7 +152,7 @@ def generate_individual_dataset(individuals: Dict[str, Any], families: Dict[str,
     return pd.DataFrame(rows)
 
 # ---------------------------------------------------------
-# DESCENDANT FINDER (NEW)
+# DESCENDANT FINDER (UNCHANGED)
 # ---------------------------------------------------------
 
 def find_all_descendants(
@@ -146,29 +163,23 @@ def find_all_descendants(
 ) -> set:
     """
     Finds all descendants of a given person up to a maximum number of generations.
-    Uses a breadth-first search (BFS) to gather descendants, including spouses.
     """
-    if not start_person_id:
-        return set()
+    if not start_person_id: return set()
 
     descendant_ids = set()
-    queue = [(start_person_id, 1)]  # (person_id, generation)
-    processed_ids = set()  # To avoid redundant processing
+    queue = [(start_person_id, 1)]
+    processed_ids = set()
 
     while queue:
         current_id, generation = queue.pop(0)
 
-        if current_id in processed_ids:
-            continue
+        if current_id in processed_ids: continue
         
         processed_ids.add(current_id)
         descendant_ids.add(current_id)
 
-        # Stop if we have reached the generation limit
-        if generation >= max_generations:
-            continue
+        if generation >= max_generations: continue
 
-        # Find the families where the current person is a parent (FAMS)
         person_data = individuals.get(current_id, {})
         fams_ids = person_data.get("FAMS", [])
 
@@ -178,16 +189,12 @@ def find_all_descendants(
             
             family_data = families.get(fam_id, {})
 
-            # Add the spouse(s) to the descendant list
             husband_id = (family_data.get("HUSB", [None])[0] or "").strip('@')
             wife_id = (family_data.get("WIFE", [None])[0] or "").strip('@')
 
-            if husband_id and husband_id != current_id:
-                descendant_ids.add(husband_id)
-            if wife_id and wife_id != current_id:
-                descendant_ids.add(wife_id)
+            if husband_id and husband_id != current_id: descendant_ids.add(husband_id)
+            if wife_id and wife_id != current_id: descendant_ids.add(wife_id)
 
-            # Find and queue the children for the next generation
             children_ids = family_data.get("CHIL", [])
             for child_id in children_ids:
                 child_id = child_id.strip('@')
@@ -199,12 +206,12 @@ def find_all_descendants(
     return descendant_ids
 
 # ---------------------------------------------------------
-# STREAMLIT APP (UPDATED)
+# STREAMLIT APP (UNCHANGED)
 # ---------------------------------------------------------
 
 def main():
     """Main function to run the Streamlit app."""
-    st.title("GEDCOM Individual Dataset Generator v2.5")
+    st.title("GEDCOM Individual Dataset Generator v2.6")
     st.sidebar.header("Instructions")
     st.sidebar.write("Upload a GEDCOM file (.ged) to generate a dataset of individuals.")
     
@@ -240,7 +247,6 @@ def main():
                 key="download-full"
             )
             
-            # --- NEW SECTION for Descendant Analysis ---
             st.markdown("---")
             st.subheader("Descendant Analysis")
             
