@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 
 # Set the page layout to wide
-st.set_page_config(layout="wide", page_title="GEDCOM Individual Dataset Generator v1.4")
+st.set_page_config(layout="wide", page_title="GEDCOM Individual Dataset Generator v1.5")
 
 def parse_gedcom(file_contents):
     """
@@ -95,7 +95,7 @@ def generate_individual_dataset(individuals, families):
     return pd.DataFrame(data)
 
 def main():
-    st.title("GEDCOM Individual Dataset Generator")
+    st.title("GEDCOM Individual Dataset Generator v1.5")
     st.sidebar.write("Upload a GEDCOM file to generate a dataset of individuals")
 
     # File upload for GEDCOM
