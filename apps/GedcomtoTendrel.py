@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 
 # Set the page layout to wide
-st.set_page_config(layout="wide", page_title="GEDCOM Individual Dataset Generator v1.5")
+st.set_page_config(layout="wide", page_title="GEDCOM Individual Dataset Generator v1.5") 
 
 def parse_gedcom(file_contents):
     """
