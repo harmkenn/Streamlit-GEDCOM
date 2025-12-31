@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 
 # Set the page layout to wide
-st.set_page_config(layout="wide", page_title="GEDCOM Individual Dataset Generator v1.0")
+st.set_page_config(layout="wide", page_title="GEDCOM Individual Dataset Generator v1.1")
 
 def parse_gedcom(file_contents):
     """
@@ -56,6 +56,9 @@ def generate_individual_dataset(individuals, families):
 
     for individual_id, individual_data in individuals.items():
         full_name = ' '.join(individual_data.get('NAME', ['Unknown']))
+        gender = individual_data.get('SEX', ['Unknown'])[0]  # Extract gender
+        birth_date = individual_data.get('BIRTDATE', ['Unknown'])[0]  # Extract birth date
+        death_date = individual_data.get('DEATDATE', ['Unknown'])[0]  # Extract death date
         fams_ids = ', '.join(individual_data.get('FAMS', []))  # Spouse Family IDs
         famc_ids = ', '.join(individual_data.get('FAMC', []))  # Child Family IDs
 
@@ -77,6 +80,9 @@ def generate_individual_dataset(individuals, families):
         data.append({
             'ID Number': individual_id,
             'Full Name': full_name,
+            'Gender': gender,  # Add gender column
+            'Birth Date': birth_date,  # Add birth date column
+            'Death Date': death_date,  # Add death date column
             'FAMS ID': fams_ids,
             'FAMC ID': famc_ids,
             "Father's ID Number": father_id,
