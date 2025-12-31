@@ -1,7 +1,7 @@
 import streamlit as st
 
 # Set the page layout to wide
-st.set_page_config(layout="wide", page_title="GEDCOM Family Tree Tracer")
+st.set_page_config(layout="wide", page_title="GEDCOM Descendant Family Tracer v1.1")
 
 def parse_gedcom(file_contents):
     """
@@ -47,27 +47,24 @@ def parse_gedcom(file_contents):
 
     return individuals, families
 
-def trace_family_tree(start_family_id, families, individuals, traced_families=None):
+def trace_descendant_families(individual_id, families, individuals, traced_families=None):
     """
-    Recursively traces the family tree starting from a specific family.
+    Recursively traces all descendant families starting from a specific individual.
     """
     if traced_families is None:
         traced_families = []
 
-    if start_family_id not in families:
-        return traced_families
+    # Find families where the individual is a parent (FAMS)
+    parent_families = individuals.get(individual_id, {}).get('FAMS', [])
+    for family_id in parent_families:
+        if family_id not in traced_families:
+            traced_families.append(family_id)
 
-    # Add the current family to the traced families
-    traced_families.append(start_family_id)
-
-    # Get children of the current family
-    children = families[start_family_id].get('CHIL', [])
-    for child_id in children:
-        # Find the families where the child is a parent (FAMS)
-        child_families = individuals.get(child_id, {}).get('FAMS', [])
-        for child_family_id in child_families:
-            if child_family_id not in traced_families:
-                trace_family_tree(child_family_id, families, individuals, traced_families)
+            # Get children of the family
+            children = families.get(family_id, {}).get('CHIL', [])
+            for child_id in children:
+                # Recursively trace families of the children
+                trace_descendant_families(child_id, families, individuals, traced_families)
 
     return traced_families
 
@@ -98,8 +95,8 @@ def filter_gedcom(traced_families, families, individuals):
     return "\n".join(filtered_gedcom)
 
 def main():
-    st.title("GEDCOM Family Tree Tracer")
-    st.sidebar.write("Upload a GEDCOM file and trace a family tree")
+    st.title("GEDCOM Descendant Family Tracer")
+    st.sidebar.write("Upload a GEDCOM file and trace descendant families")
 
     # File upload for GEDCOM
     gedcom_file = st.sidebar.file_uploader("Upload GEDCOM File", type=["ged"])
@@ -112,30 +109,30 @@ def main():
             # Parse the GEDCOM file
             individuals, families = parse_gedcom(gedcom_contents)
 
-            # Select starting family for tracing
-            st.sidebar.subheader("Select Starting Family")
-            start_family_id = st.sidebar.selectbox(
-                "Select a family",
-                options=list(families.keys()),
-                format_func=lambda x: f"Family {x} ({', '.join(families[x].get('HUSB', []) + families[x].get('WIFE', []))})"
+            # Select starting individual for tracing
+            st.sidebar.subheader("Select Starting Individual")
+            start_individual_id = st.sidebar.selectbox(
+                "Select an individual",
+                options=list(individuals.keys()),
+                format_func=lambda x: ' '.join(individuals[x].get('NAME', ['Unknown']))
             )
 
-            if start_family_id:
-                # Trace family tree
-                traced_families = trace_family_tree(start_family_id, families, individuals)
+            if start_individual_id:
+                # Trace descendant families
+                traced_families = trace_descendant_families(start_individual_id, families, individuals)
 
                 # Filter GEDCOM
                 filtered_gedcom = filter_gedcom(traced_families, families, individuals)
 
                 # Display traced family tree
-                st.subheader(f"Traced Family Tree Starting from Family {start_family_id}")
+                st.subheader(f"Traced Family Tree Starting from Individual {start_individual_id}")
                 st.text_area("Filtered GEDCOM", value=filtered_gedcom, height=400)
 
                 # Download button for filtered GEDCOM
                 st.download_button(
                     label="Download Filtered GEDCOM",
                     data=filtered_gedcom,
-                    file_name="filtered_family_tree.ged",
+                    file_name="filtered_descendant_tree.ged",
                     mime="text/plain",
                 )
 
