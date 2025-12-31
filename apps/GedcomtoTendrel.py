@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 
 # Set the page layout to wide
-st.set_page_config(layout="wide", page_title="GEDCOM Individual Dataset Generator v2.0")
+st.set_page_config(layout="wide", page_title="GEDCOM Individual Dataset Generator v2.1")
 
 def parse_gedcom(file_contents):
     """
@@ -81,11 +81,15 @@ def generate_individual_dataset(individuals, families):
         father_id = mother_id = None
         father_name = mother_name = None
 
+        # Each FAMC entry is a family where this person is a child
         for famc in data.get("FAMC", []):
-            fam = families.get(famc, {})
-            father_id = fam.get("HUSB", [None])[0]
-            mother_id = fam.get("WIFE", [None])[0]
+            family = families.get(famc, {})
 
+            # Extract parent IDs
+            father_id = family.get("HUSB", [None])[0]
+            mother_id = family.get("WIFE", [None])[0]
+
+            # Lookup parent names
             if father_id:
                 father_name = " ".join(individuals.get(father_id, {}).get("NAME", ["Unknown"]))
             if mother_id:
@@ -107,9 +111,8 @@ def generate_individual_dataset(individuals, families):
 
     return pd.DataFrame(rows)
 
-
 def main():
-    st.title("GEDCOM Individual Dataset Generator v2.0")
+    st.title("GEDCOM Individual Dataset Generator v2.1")
     st.sidebar.write("Upload a GEDCOM file to generate a dataset of individuals")
 
     uploaded = st.sidebar.file_uploader("Upload GEDCOM File", type=["ged"])
