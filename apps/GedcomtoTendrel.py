@@ -3,7 +3,7 @@ import pandas as pd
 from typing import Dict, List, Tuple, Any, Optional
 
 # Set the page layout to wide
-st.set_page_config(layout="wide", page_title="GEDCOM Individual Dataset Generator v2.2")
+st.set_page_config(layout="wide", page_title="GEDCOM Individual Dataset Generator v2.3")
 
 # ---------------------------------------------------------
 # GEDCOM PARSER (IMPROVED)
@@ -36,20 +36,18 @@ def parse_gedcom(file_contents: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         level = int(parts[0])
         
         if level == 0:
-            # If we are at a new top-level record, save the previous one.
             if current_id and current_type:
                 if current_type == "INDI":
                     individuals[current_id] = records
                 elif current_type == "FAM":
                     families[current_id] = records
 
-            # Start a new record
             if len(parts) > 2 and parts[2] in ("INDI", "FAM"):
                 current_id = parts[1].strip("@")
                 current_type = parts[2]
                 records = {}
                 last_tag_info = {}
-            else: # Header or other non-individual/family record
+            else:
                 current_id = None
                 current_type = None
         
@@ -66,7 +64,6 @@ def parse_gedcom(file_contents: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
             last_tag_info = {"tag": tag, "index": len(records[tag]) - 1}
 
         elif level > 1 and last_tag_info:
-            # Handle continuation lines (CONC/CONT) for the last entry
             parent_tag = last_tag_info["tag"]
             parent_index = last_tag_info["index"]
             
@@ -74,13 +71,12 @@ def parse_gedcom(file_contents: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
                 records[parent_tag][parent_index] += value
             elif tag == "CONT":
                 records[parent_tag][parent_index] += "\n" + value
-            else: # Handle other sub-tags like '2 DATE', '2 PLAC'
+            else:
                 full_tag = f"{parent_tag}_{tag}"
                 if full_tag not in records:
                     records[full_tag] = []
                 records[full_tag].append(value)
 
-    # Save the very last record in the file
     if current_id and current_type:
         if current_type == "INDI":
             individuals[current_id] = records
@@ -96,23 +92,29 @@ def parse_gedcom(file_contents: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
 def generate_individual_dataset(individuals: Dict[str, Any], families: Dict[str, Any]) -> pd.DataFrame:
     """
     Builds a clean dataset of individuals with corrected parent lookup.
-
-    IMPROVEMENTS:
-    - Fixes bug where only the last parent family record was used.
-    - Uses helper function to avoid repetitive code for name lookup.
-    - More resilient to missing data.
     """
     rows = []
 
     def get_person_name(ind_id: str) -> Optional[str]:
+        """
+        Safely retrieves and cleans a person's name from their ID.
+        Handles cases where the NAME tag is missing.
+        """
         if not ind_id:
             return None
+        
         person_data = individuals.get(ind_id, {})
-        # Replace slashes in name, common in GEDCOM format
-        return person_data.get("NAME", [None])[0].replace("/", "")
+        name = person_data.get("NAME", [None])[0]
+        
+        # --- THIS IS THE FIX ---
+        # Only call .replace() if the name is a valid string
+        if isinstance(name, str):
+            return name.replace("/", "")
+        
+        return None # Return None if name is not a string (i.e., it's None)
+
 
     for ind_id, data in individuals.items():
-        # FAMC can be a list; we only use the first one for parent lookup.
         famc_id = data.get("FAMC", [None])[0]
 
         father_id, mother_id = None, None
@@ -142,7 +144,7 @@ def generate_individual_dataset(individuals: Dict[str, Any], families: Dict[str,
 
 def main():
     """Main function to run the Streamlit app."""
-    st.title("GEDCOM Individual Dataset Generator v2.2")
+    st.title("GEDCOM Individual Dataset Generator v2.3")
     st.sidebar.header("Instructions")
     st.sidebar.write("Upload a GEDCOM file (.ged) to generate a dataset of individuals.")
     
@@ -150,7 +152,6 @@ def main():
 
     if uploaded_file:
         try:
-            # Try decoding with utf-8, fall back to latin-1 for broader compatibility
             try:
                 contents = uploaded_file.read().decode("utf-8")
             except UnicodeDecodeError:
@@ -179,7 +180,7 @@ def main():
             )
         except Exception as e:
             st.error(f"An unexpected error occurred: {e}")
-            st.exception(e) # Provides a full traceback for debugging
+            st.exception(e)
 
 if __name__ == "__main__":
     main()
