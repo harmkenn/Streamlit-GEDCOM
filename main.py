@@ -7,7 +7,7 @@ st.set_page_config(layout="wide", page_title=f"Gedcoms")
 
 # Dictionary that maps .py filenames to user-friendly names
 sub_app_names = {
-    'FamilySearchTendril.py'; 'Family Search Tendril',
+    'FamilySearchTendril.py': 'Family Search Tendril',
 }
 
 # Get a list of .py files from the SubApps folder
