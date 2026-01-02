@@ -4,7 +4,7 @@ from typing import Dict, List, Tuple, Any, Optional
 import re
 
 # Set the page layout to wide
-st.set_page_config(layout="wide", page_title="GEDCOM Individual Dataset Generator v2.6")
+st.set_page_config(layout="wide", page_title="GEDCOM Individual Dataset Generator v2.7")
 
 # ---------------------------------------------------------
 # GEDCOM PARSER (UNCHANGED)
@@ -20,24 +20,24 @@ def parse_gedcom(file_contents: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     current_type: Optional[str] = None
     records: Dict[str, Any] = {}
     last_tag_info: Dict[str, Any] = {}
-
     lines = file_contents.strip().splitlines()
-
     for line in lines:
         line = line.strip()
         if not line:
             continue
-
-        parts = line.split(" ", 2)
-        level = int(parts[0])
         
+        try:
+            parts = line.split(" ", 2)
+            level = int(parts[0])
+        except (ValueError, IndexError):
+            continue
+
         if level == 0:
             if current_id and current_type:
                 if current_type == "INDI":
                     individuals[current_id] = records
                 elif current_type == "FAM":
                     families[current_id] = records
-
             if len(parts) > 2 and parts[2] in ("INDI", "FAM"):
                 current_id = parts[1].strip("@")
                 current_type = parts[2]
@@ -52,26 +52,25 @@ def parse_gedcom(file_contents: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
             
         tag = parts[1].strip()
         value = parts[2] if len(parts) > 2 else ""
-
         if level == 1:
             if tag not in records:
                 records[tag] = []
             records[tag].append(value)
             last_tag_info = {"tag": tag, "index": len(records[tag]) - 1}
-
         elif level > 1 and last_tag_info:
-            parent_tag = last_tag_info["tag"]
-            parent_index = last_tag_info["index"]
+            parent_tag = last_tag_info.get("tag")
+            parent_index = last_tag_info.get("index")
             
-            if tag == "CONC":
-                records[parent_tag][parent_index] += value
-            elif tag == "CONT":
-                records[parent_tag][parent_index] += "\n" + value
-            else:
-                full_tag = f"{parent_tag}_{tag}"
-                if full_tag not in records:
-                    records[full_tag] = []
-                records[full_tag].append(value)
+            if parent_tag and parent_index is not None:
+                if tag == "CONC":
+                    records[parent_tag][parent_index] += value
+                elif tag == "CONT":
+                    records[parent_tag][parent_index] += "\n" + value
+                else:
+                    full_tag = f"{parent_tag}_{tag}"
+                    if full_tag not in records:
+                        records[full_tag] = []
+                    records[full_tag].append(value)
 
     if current_id and current_type:
         if current_type == "INDI":
@@ -82,30 +81,22 @@ def parse_gedcom(file_contents: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     return individuals, families
 
 # ---------------------------------------------------------
-# HELPER FUNCTION FOR DATE FORMATTING (NEW)
+# HELPER FUNCTION FOR DATE FORMATTING (UNCHANGED)
 # ---------------------------------------------------------
 
 def format_gedcom_date(date_str: Optional[str]) -> Optional[str]:
     """
     Parses various GEDCOM date formats into a single 'YYYY-MM-DD' format.
-    Handles partial dates by padding with '01' for month/day.
     """
-    if not date_str:
+    if not date_str or pd.isna(date_str):
         return None
-
-    # Clean the string from common GEDCOM keywords and ranges
-    clean_date_str = re.sub(r'^(ABT|EST|CAL|INT|BEF|AFT|FROM|TO)\s+', '', date_str.strip(), flags=re.IGNORECASE)
+    clean_date_str = re.sub(r'^(ABT|EST|CAL|INT|BEF|AFT|FROM|TO)\s+', '', str(date_str).strip(), flags=re.IGNORECASE)
     clean_date_str = re.sub(r'^BET\s+(.*?)\s+AND.*', r'\1', clean_date_str, flags=re.IGNORECASE)
-    
-    # Use pandas to_datetime which is powerful and can handle many formats.
-    # errors='coerce' will turn unparseable dates into NaT (Not a Time).
-    dt_object = pd.to_datetime(clean_date_str, errors='coerce')
-    
-    # If we have a valid datetime object, format it. Otherwise, return None.
-    if pd.notna(dt_object):
-        return dt_object.strftime('%Y-%m-%d')
-    
-    return None
+    try:
+        dt_object = pd.to_datetime(clean_date_str, errors='coerce')
+        return dt_object.strftime('%Y-%m-%d') if pd.notna(dt_object) else None
+    except:
+        return None
 
 # ---------------------------------------------------------
 # DATASET GENERATOR (UPDATED)
@@ -116,17 +107,22 @@ def generate_individual_dataset(individuals: Dict[str, Any], families: Dict[str,
     Builds a clean dataset of individuals with date formatting and parent lookup.
     """
     rows = []
-
+    
+    # Memoized name lookup for performance
+    _name_cache = {}
     def get_person_name(ind_id: Optional[str]) -> Optional[str]:
-        if not ind_id: return None
-        person_data = individuals.get(ind_id, {})
-        name = person_data.get("NAME", [None])[0]
-        return name.replace("/", "") if isinstance(name, str) else None
+        if not ind_id or pd.isna(ind_id): return None
+        ind_id_clean = str(ind_id).strip('@')
+        if ind_id_clean in _name_cache: return _name_cache[ind_id_clean]
+        
+        person_data = individuals.get(ind_id_clean, {})
+        name = (person_data.get("NAME", [None])[0] or "").replace("/", "")
+        _name_cache[ind_id_clean] = name
+        return name
 
     for ind_id, data in individuals.items():
         famc_id_raw = data.get("FAMC", [None])[0]
         famc_id = famc_id_raw.strip("@") if famc_id_raw else None
-
         father_id, mother_id = None, None
         if famc_id:
             family_data = families.get(famc_id, {})
@@ -134,14 +130,15 @@ def generate_individual_dataset(individuals: Dict[str, Any], families: Dict[str,
             raw_mother_id = family_data.get("WIFE", [None])[0]
             father_id = raw_father_id.strip("@") if raw_father_id else None
             mother_id = raw_mother_id.strip("@") if raw_mother_id else None
-
+            
         rows.append({
             "ID Number": ind_id,
             "Full Name": get_person_name(ind_id),
             "Gender": data.get("SEX", [None])[0],
-            # --- DATE FORMATTING APPLIED HERE ---
             "Birth Date": format_gedcom_date(data.get("BIRT_DATE", [None])[0]),
             "Death Date": format_gedcom_date(data.get("DEAT_DATE", [None])[0]),
+            # --- FSFTID IS NOW ADDED HERE ---
+            "FSFTID": data.get("_FSFTID", [None])[0],
             "FAMS ID": ", ".join(id.strip("@") for id in data.get("FAMS", []) if id),
             "FAMC ID": famc_id,
             "Father's ID Number": father_id,
@@ -165,43 +162,30 @@ def find_all_descendants(
     Finds all descendants of a given person up to a maximum number of generations.
     """
     if not start_person_id: return set()
-
     descendant_ids = set()
     queue = [(start_person_id, 1)]
     processed_ids = set()
-
     while queue:
         current_id, generation = queue.pop(0)
-
         if current_id in processed_ids: continue
         
         processed_ids.add(current_id)
         descendant_ids.add(current_id)
-
         if generation >= max_generations: continue
-
+        
         person_data = individuals.get(current_id, {})
         fams_ids = person_data.get("FAMS", [])
-
         for fam_id in fams_ids:
             fam_id = fam_id.strip('@')
             if not fam_id: continue
             
             family_data = families.get(fam_id, {})
-
-            husband_id = (family_data.get("HUSB", [None])[0] or "").strip('@')
-            wife_id = (family_data.get("WIFE", [None])[0] or "").strip('@')
-
-            if husband_id and husband_id != current_id: descendant_ids.add(husband_id)
-            if wife_id and wife_id != current_id: descendant_ids.add(wife_id)
-
             children_ids = family_data.get("CHIL", [])
             for child_id in children_ids:
-                child_id = child_id.strip('@')
-                if child_id:
-                    descendant_ids.add(child_id)
-                    if child_id not in processed_ids:
-                         queue.append((child_id, generation + 1))
+                child_id_clean = child_id.strip('@')
+                if child_id_clean and child_id_clean not in processed_ids:
+                     descendant_ids.add(child_id_clean)
+                     queue.append((child_id_clean, generation + 1))
     
     return descendant_ids
 
@@ -215,14 +199,13 @@ def main():
     st.sidebar.header("Instructions")
     st.sidebar.write("Upload a GEDCOM file (.ged) to generate a dataset of individuals.")
     
-    uploaded_file = st.sidebar.file_uploader("Upload GEDCOM File", type=["ged"])
+    uploaded_file = st.sidebar.file_uploader("Upload GEDCOM File", type=["ged", "txt"])
+
     if uploaded_file:
         try:
             try:
-                # FIX APPLIED HERE: Use 'utf-8-sig' to handle the Byte Order Mark (BOM)
                 contents = uploaded_file.read().decode("utf-8-sig")
             except UnicodeDecodeError:
-                # This is a good fallback for other strange encodings
                 uploaded_file.seek(0)
                 contents = uploaded_file.read().decode("latin-1")
             
@@ -238,7 +221,6 @@ def main():
 
             st.subheader("Generated Dataset of All Individuals")
             st.dataframe(dataset, use_container_width=True)
-
             csv_data = dataset.to_csv(index=False).encode('utf-8')
             st.download_button(
                 label="Download Full Dataset as CSV",
@@ -256,16 +238,15 @@ def main():
             ).tolist()
             
             if not name_list:
-                st.warning("No individuals with names found to select for descendant analysis.")
+                st.warning("No individuals with names found for descendant analysis.")
                 return
 
             selected_person_str = st.selectbox(
                 "Select an individual to find their descendants (up to 7 generations):",
                 options=name_list
             )
-
             if selected_person_str:
-                start_id = selected_person_str.split('(ID: ')[1].replace(')', '')
+                start_id = re.search(r'\(ID: (.*?)\)', selected_person_str).group(1)
                 
                 with st.spinner(f"Finding descendants of {start_id}..."):
                     descendant_ids = find_all_descendants(
@@ -278,9 +259,8 @@ def main():
                 if descendant_ids:
                     descendant_df = dataset[dataset['ID Number'].isin(descendant_ids)].copy()
                     
-                    st.write(f"Found **{len(descendant_df)}** descendants (including spouses) for the selected individual.")
+                    st.write(f"Found **{len(descendant_df)}** descendants for the selected individual.")
                     st.dataframe(descendant_df, use_container_width=True)
-
                     csv_desc_data = descendant_df.to_csv(index=False).encode('utf-8')
                     st.download_button(
                         label="Download Descendant Dataset as CSV",
@@ -291,10 +271,10 @@ def main():
                     )
                 else:
                     st.info("No descendants found for the selected individual.")
-
         except Exception as e:
             st.error(f"An unexpected error occurred: {e}")
             st.exception(e)
 
 # This will run the app
 main()
+
