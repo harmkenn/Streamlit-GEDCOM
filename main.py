@@ -11,6 +11,7 @@ sub_app_names = {
     'AncestryTendril.py': 'Ancestry Tendril',
     'FamilySearchTendril.py': 'Family Search Tendril',
     'MissingPeople.py': 'Missing People',
+    'AllThree.py': 'All Three',
 }
 
 # Get a list of .py files from the SubApps folder
