@@ -23,4 +23,5 @@ selenium
 SpeechRecognition
 streamlit
 streamlit-aggrid
+thefuzz
 yfinance
