@@ -28,4 +28,3 @@ if selected_sub_app:
     spec = importlib.util.spec_from_file_location(selected_sub_app, os.path.join(sub_apps_folder, selected_sub_app))
     sub_app_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(sub_app_module)
-    
