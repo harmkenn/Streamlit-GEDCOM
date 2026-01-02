@@ -9,7 +9,7 @@ st.set_page_config(layout="wide", page_title=f"Gedcoms")
 sub_app_names = {
     'gedcom.py': 'Generic Gedcom',
     'GedcomFilter.py': 'Special Gedcom',
-    'DisplayAncestry.py': 'Ancestry GEDCOM'
+    'AncestryTendril.py': 'Ancestry Tendril'
 }
 
 # Get a list of .py files from the SubApps folder
