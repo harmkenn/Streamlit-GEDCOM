@@ -10,6 +10,7 @@ sub_app_names = {
     'GedcomFilter.py': 'Special Gedcom',
     'AncestryTendril.py': 'Ancestry Tendril',
     'FamilySearchTendril.py': 'Family Search Tendril',
+    'MissingPeople.py': 'Missing People',
 }
 
 # Get a list of .py files from the SubApps folder
