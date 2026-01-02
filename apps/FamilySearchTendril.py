@@ -211,7 +211,7 @@ def find_all_descendants(
 
 def main():
     """Main function to run the Streamlit app."""
-    st.title("GEDCOM Individual Dataset Generator v2.6")
+    st.title("FamilySearch.com GEDCOM Individual Dataset Generator v2.6")
     st.sidebar.header("Instructions")
     st.sidebar.write("Upload a GEDCOM file (.ged) to generate a dataset of individuals.")
     
