@@ -211,17 +211,18 @@ def find_all_descendants(
 
 def main():
     """Main function to run the Streamlit app."""
-    st.title("Ancestry.com GEDCOM Individual Dataset Generator v2.6")
+    st.title("FamilySearch.com GEDCOM Individual Dataset Generator v2.6")
     st.sidebar.header("Instructions")
     st.sidebar.write("Upload a GEDCOM file (.ged) to generate a dataset of individuals.")
     
     uploaded_file = st.sidebar.file_uploader("Upload GEDCOM File", type=["ged"])
-
     if uploaded_file:
         try:
             try:
-                contents = uploaded_file.read().decode("utf-8")
+                # FIX APPLIED HERE: Use 'utf-8-sig' to handle the Byte Order Mark (BOM)
+                contents = uploaded_file.read().decode("utf-8-sig")
             except UnicodeDecodeError:
+                # This is a good fallback for other strange encodings
                 uploaded_file.seek(0)
                 contents = uploaded_file.read().decode("latin-1")
             
@@ -294,4 +295,6 @@ def main():
         except Exception as e:
             st.error(f"An unexpected error occurred: {e}")
             st.exception(e)
+
+# This will run the app
 main()
