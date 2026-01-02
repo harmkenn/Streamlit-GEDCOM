@@ -7,8 +7,7 @@ st.set_page_config(layout="wide", page_title=f"Gedcoms")
 
 # Dictionary that maps .py filenames to user-friendly names
 sub_app_names = {
-    'AncestryTendril.py': 'Ancestry Tendril',
-    'AncestryTendril.py': 'Ancestry Tendril',
+    'GedcomFilter.py': 'Special Gedcom',
     'AncestryTendril.py': 'Ancestry Tendril',
     'FamilySearchTendril.py': 'Family Search Tendril',
 }
