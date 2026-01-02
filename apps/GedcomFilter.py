@@ -123,5 +123,4 @@ def main():
                 mime="application/vnd.ms-excel",
             )
 
-if __name__ == "__main__":
-    main()
+main()
