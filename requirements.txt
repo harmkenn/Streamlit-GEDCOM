@@ -20,6 +20,7 @@ scikit-learn
 scipy
 scrapy
 selenium
+sentence-transformers
 SpeechRecognition
 streamlit
 streamlit-aggrid
