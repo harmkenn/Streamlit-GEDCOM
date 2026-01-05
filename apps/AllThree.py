@@ -9,7 +9,7 @@ import io
 st.set_page_config(layout="wide", page_title="Genealogy Workbench", page_icon="🌳")
 
 # ==============================================================================
-# SECTION 1: SHARED CORE FUNCTIONS v3.1
+# SECTION 1: SHARED CORE FUNCTIONS v3.2
 # ==============================================================================
 
 @st.cache_data
@@ -410,7 +410,7 @@ with st.expander("🔍 STEP 3: Compare Source and Target", expanded=True):
         # Matching settings in columns for better layout
         col1, col2 = st.columns(2)
         with col1:
-            match_threshold = st.slider("Match Threshold Score", 50, 95, 70, 
+            match_threshold = st.slider("Match Threshold Score", 50, 95, 90, 
                                       help="Minimum total score (out of 100) to consider a match. Lower = more lenient.")
         with col2:
             st.info("""
