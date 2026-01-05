@@ -9,7 +9,7 @@ import io
 st.set_page_config(layout="wide", page_title="Genealogy Workbench", page_icon="🌳")
 
 # ==============================================================================
-# SECTION 1: SHARED CORE FUNCTIONS v3.0
+# SECTION 1: SHARED CORE FUNCTIONS v3.1
 # ==============================================================================
 
 @st.cache_data
@@ -482,8 +482,17 @@ with st.expander("🔍 STEP 3: Compare Source and Target", expanded=True):
                 comparisons_skipped += len(target_df) - len(candidate_indices)
                 
                 # Compare only against filtered candidates
+                sp_gender = str(source_person.get('Gender', '')).strip().upper()
+                
                 for tidx in candidate_indices:
                     target_person = target_df.iloc[tidx]
+                    
+                    # GENDER FILTER: Skip if genders don't match (when both are known)
+                    tp_gender = str(target_person.get('Gender', '')).strip().upper()
+                    if sp_gender and tp_gender and sp_gender != tp_gender:
+                        comparisons_skipped += 1
+                        continue
+                    
                     score, details = calculate_match_score(source_person, target_person)
                     comparisons_made += 1
                     
@@ -616,8 +625,12 @@ with st.sidebar:
     **Tips:**
     - Start by uploading your source file (Step 1)
     - Then upload your target file (Step 2)
-    - Adjust matching settings as needed
-    - Use fuzzy matching for faster results
+    - Adjust matching threshold as needed
+    - Lower threshold = more lenient matching
+    
+    **Scoring System:**
+    - High score (70-100) = Strong match = NOT missing
+    - Low score (0-69) = Weak match = Likely missing
     """)
     
     st.markdown("---")
