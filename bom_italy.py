@@ -353,12 +353,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Header
-st.markdown("""
-<div class="header-box">
-    <h1>📖 Libro di Mormon</h1>
-    <p>Lettura quotidiana in 365 giorni</p>
-</div>
-""", unsafe_allow_html=True)
+st.title("📖 Libro di Mormon")
+st.caption("Lettura quotidiana in 365 giorni")
 
 # Initialize translation cache
 if 'translation_cache' not in st.session_state:
@@ -409,22 +405,11 @@ st.progress(progress, text=f"Progresso: {progress*100:.0f}%")
 
 # Dataset status notice
 if len(all_verses) < 100:
-    st.markdown("""
-    <div class="info-box">
-        <strong>⚠️ Modalità Demo</strong><br>
-        Posiziona book_of_mormon_bilingual.json nella stessa directory.
-    </div>
-    """, unsafe_allow_html=True)
+    st.warning("⚠️ Demo Mode: Place book_of_mormon_bilingual.json in the same directory.")
 else:
     verses_with_italian = sum(1 for v in all_verses if v.get('italian', ''))
     percentage = verses_with_italian / len(all_verses) * 100
-    st.markdown(
-        f'<div class="success-box">'
-        f'<strong>✅ Dataset Completo Caricato!</strong><br>'
-        f'Versetti: {len(all_verses)} | Italiano: {percentage:.0f}%'
-        f'</div>',
-        unsafe_allow_html=True
-    )
+    st.info(f"✅ {len(all_verses)} verses loaded ({percentage:.0f}% have Italian translations)")
 
 # Get today's verses
 todays_verses = get_verses_for_day(day_of_year, all_verses)
@@ -432,13 +417,8 @@ todays_verses = get_verses_for_day(day_of_year, all_verses)
 # Day header
 start_verse = (day_of_year - 1) * VERSES_PER_DAY + 1
 end_verse = min(start_verse + VERSES_PER_DAY - 1, TOTAL_VERSES)
-st.markdown(
-    f'<div class="day-header">'
-    f'<strong>{selected_date.strftime("%d %B %Y")}</strong><br>'
-    f'<small>Versetti {start_verse}–{end_verse}</small>'
-    f'</div>',
-    unsafe_allow_html=True
-)
+st.subheader(f"{selected_date.strftime('%d %B %Y')}")
+st.caption(f"Verses {start_verse}–{end_verse}")
 
 st.divider()
 
@@ -447,18 +427,18 @@ for idx, verse in enumerate(todays_verses):
     reference = f"{verse['book']} {verse['chapter']}:{verse['verse']}"
     verse_id = f"verse_{idx}_{verse['chapter']}_{verse['verse']}"
     
-    st.markdown(f"**{reference}**")
+    st.markdown(f"### {reference}")
     
     # Side-by-side English and Italian with interactive words
     col_en, col_it = st.columns(2)
     
     with col_en:
-        st.markdown('<div class="section-title english-title">English</div>', unsafe_allow_html=True)
+        st.markdown("**English**")
         english_interactive = make_text_interactive(verse["english"], verse_id, 'en')
         st.markdown(f'{english_interactive}', unsafe_allow_html=True)
     
     with col_it:
-        st.markdown('<div class="section-title italian-title">Italiano</div>', unsafe_allow_html=True)
+        st.markdown("**Italiano**")
         italian_interactive = make_text_interactive(verse.get('italian', ''), verse_id, 'it')
         st.markdown(f'{italian_interactive}', unsafe_allow_html=True)
     
