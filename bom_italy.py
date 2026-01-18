@@ -11,13 +11,7 @@ st.set_page_config(
     page_title="Book of Mormon Daily Reader",
     page_icon="📖",
     layout="wide",
-    initial_sidebar_state="collapsed",
-    theme={
-        "primaryColor": "#4F46E5",
-        "backgroundColor": "#FFFFFF",
-        "secondaryBackgroundColor": "#F3F4F6",
-        "textColor": "#262730"
-    }
+    initial_sidebar_state="collapsed"
 )
 
 # Constants
@@ -126,6 +120,20 @@ function highlightWord(clickedElement) {
 # Mobile-optimized CSS
 st.markdown("""
 <style>
+    /* Force light mode */
+    [data-testid="stApp"] {
+        background-color: #FFFFFF !important;
+    }
+    
+    [data-testid="stHeader"] {
+        background-color: #FFFFFF !important;
+    }
+    
+    body {
+        background-color: #FFFFFF !important;
+        color: #262730 !important;
+    }
+    
     /* Mobile-first responsive design */
     .main > div {
         padding-top: 1rem;
