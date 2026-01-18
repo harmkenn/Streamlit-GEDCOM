@@ -6,6 +6,12 @@ import base64
 from io import BytesIO
 import os
 
+# Try to import translator, install if needed
+try:
+    from translate import Translator
+except ImportError:
+    Translator = None
+
 # Page config
 st.set_page_config(
     page_title="Book of Mormon Daily Reader",
@@ -47,6 +53,28 @@ def load_verses():
             return SAMPLE_VERSES
     return SAMPLE_VERSES
 
+def translate_italian_word(italian_word):
+    """Translate an Italian word to English using available method"""
+    italian_word_lower = italian_word.lower()
+    
+    # Try using translate library first
+    if Translator:
+        try:
+            translator = Translator(from_lang='it', to_lang='en')
+            translation = translator.translate(italian_word)
+            return translation if translation else italian_word
+        except:
+            pass
+    
+    # Fallback: try googletrans
+    try:
+        from googletrans import Translator as GoogleTranslator
+        gt = GoogleTranslator()
+        result = gt.translate(italian_word, src_language='it', dest_language='en')
+        return result if result else italian_word
+    except:
+        return "Translation unavailable"
+
 def get_day_of_year(date):
     """Calculate day of year from a date"""
     from datetime import date as date_class
@@ -72,8 +100,10 @@ def text_to_speech_link(text, lang='it'):
         return f"<p style='color: red; font-size: 0.9em;'>Audio error: {str(e)}</p>"
 
 def make_text_interactive(text, verse_id, language='en'):
-    """Convert text into clickable words with highlighting capability"""
+    """Convert text into clickable words with translation capability"""
     import re
+    import json
+    
     # Split on whitespace and punctuation, keeping punctuation
     words = re.findall(r'\b\w+\b|\W+', text)
     html = []
@@ -81,41 +111,126 @@ def make_text_interactive(text, verse_id, language='en'):
     
     for item in words:
         if re.match(r'\w+', item):  # Is a word
-            html.append(f'<span class="word-clickable" data-verse="{verse_id}" data-lang="{language}" data-word-idx="{word_index}" onclick="highlightWord(this)">{item}</span>')
+            if language == 'it':
+                # Create unique ID for each word instance
+                word_id = f"{verse_id}_word_{word_index}_{item}"
+                # Italian words are clickable for translation
+                html.append(f'<span class="italian-word" data-word="{item}" data-word-id="{word_id}" style="cursor: pointer; border-bottom: 1px dotted #059669;" onclick="handleWordClick(this)" title="Click for translation">{item}</span>')
+            else:
+                # English words are just displayed
+                html.append(f'<span>{item}</span>')
             word_index += 1
         else:  # Is punctuation/whitespace
             html.append(item)
     
     return ''.join(html)
 
-# JavaScript for word highlighting
+# JavaScript for word translation with inline display
 st.markdown("""
 <script>
-function highlightWord(clickedElement) {
-    const verseId = clickedElement.getAttribute('data-verse');
-    const wordIdx = clickedElement.getAttribute('data-word-idx');
-    const lang = clickedElement.getAttribute('data-lang');
+// Store translations in memory during session
+if (!window.translationCache) {
+    window.translationCache = {};
+}
+
+function handleWordClick(element) {
+    const word = element.getAttribute('data-word');
+    const wordId = element.getAttribute('data-word-id');
     
-    // Remove all highlights from this verse
-    document.querySelectorAll(`.word-clickable[data-verse="${verseId}"]`).forEach(el => {
-        el.classList.remove('word-highlighted');
-    });
-    
-    // Add highlight to clicked word
-    clickedElement.classList.add('word-highlighted');
-    
-    // Highlight corresponding word in other language
-    const otherLang = lang === 'en' ? 'it' : 'en';
-    const correspondingWord = document.querySelector(
-        `.word-clickable[data-verse="${verseId}"][data-lang="${otherLang}"][data-word-idx="${wordIdx}"]`
-    );
-    
-    if (correspondingWord) {
-        correspondingWord.classList.add('word-highlighted');
+    // Check cache first
+    if (window.translationCache && window.translationCache[word]) {
+        showTranslationTooltip(word, window.translationCache[word]);
+        return;
     }
+    
+    showTranslationTooltip(word, 'Looking up translation...');
+    
+    // Request translation from server using fetch with a rerun trigger
+    const formData = new FormData();
+    formData.append('_streamlit_translate', word);
+    
+    fetch(window.location.href, {
+        method: 'POST',
+        body: formData
+    }).then(() => {
+        // After fetch, translation should be cached
+        setTimeout(() => {
+            if (window.translationCache && window.translationCache[word]) {
+                showTranslationTooltip(word, window.translationCache[word]);
+            } else {
+                showTranslationTooltip(word, 'Translation not found');
+            }
+        }, 500);
+    }).catch(err => {
+        console.error('Translation error:', err);
+        showTranslationTooltip(word, 'Error translating');
+    });
+}
+
+function showTranslationTooltip(word, translation) {
+    // Remove any existing tooltip
+    const existing = document.querySelector('.translation-tooltip');
+    if (existing) {
+        existing.remove();
+    }
+    
+    // Create tooltip
+    const tooltip = document.createElement('div');
+    tooltip.className = 'translation-tooltip';
+    tooltip.innerHTML = `<strong>${word}:</strong> <em>${translation}</em>`;
+    tooltip.style.cssText = `
+        position: fixed;
+        background: linear-gradient(135deg, #4F46E5 0%, #667eea 100%);
+        color: white;
+        padding: 12px 16px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        z-index: 10000;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        max-width: 280px;
+        word-wrap: break-word;
+        border: 1px solid rgba(255,255,255,0.2);
+        text-align: center;
+        animation: slideDown 0.3s ease-out;
+    `;
+    
+    document.body.appendChild(tooltip);
+    
+    // Position near top center
+    tooltip.style.top = '80px';
+    tooltip.style.left = '50%';
+    tooltip.style.transform = 'translateX(-50%)';
+    
+    // Auto-remove after 4 seconds
+    setTimeout(() => {
+        if (tooltip.parentNode) {
+            tooltip.remove();
+        }
+    }, 4000);
+}
+
+// Add animation
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateX(-50%) translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+    }
+`;
+if (!document.querySelector('style[data-translation-animation]')) {
+    style.setAttribute('data-translation-animation', 'true');
+    document.head.appendChild(style);
 }
 </script>
 """, unsafe_allow_html=True)
+
 
 # Mobile-optimized CSS
 st.markdown("""
@@ -294,6 +409,18 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# Initialize translation cache
+if 'translation_cache' not in st.session_state:
+    st.session_state.translation_cache = {}
+
+# Check for translation requests
+query_params = st.query_params
+if '_streamlit_translate' in query_params:
+    word_to_translate = query_params['_streamlit_translate']
+    if word_to_translate not in st.session_state.translation_cache:
+        translated = translate_italian_word(word_to_translate)
+        st.session_state.translation_cache[word_to_translate] = translated
+
 # Load verses
 all_verses = load_verses()
 
@@ -391,3 +518,15 @@ for idx, verse in enumerate(todays_verses):
 # Footer
 st.divider()
 st.caption(f"📚 Libro di Mormon | Giorno {day_of_year} di 365")
+
+# Hidden component to handle translation requests via JavaScript
+def show_translations():
+    """Display cached translations as JSON for JavaScript to use"""
+    if st.session_state.translation_cache:
+        st.markdown(f"""
+        <script>
+        window.translationCache = {json.dumps(st.session_state.translation_cache)};
+        </script>
+        """, unsafe_allow_html=True)
+
+show_translations()
