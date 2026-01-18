@@ -440,15 +440,6 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Italian audio for all verses button
-if st.button("🔊 Ascolta Tutti i Versetti in Italiano", use_container_width=True):
-    all_italian = " ".join([v.get('italian', '') for v in todays_verses if v.get('italian', '')])
-    if all_italian:
-        audio_html = text_to_speech_link(all_italian, 'it')
-        st.markdown(audio_html, unsafe_allow_html=True)
-    else:
-        st.warning("Nessun testo italiano disponibile")
-
 st.divider()
 
 # Display verses
@@ -456,8 +447,7 @@ for idx, verse in enumerate(todays_verses):
     reference = f"{verse['book']} {verse['chapter']}:{verse['verse']}"
     verse_id = f"verse_{idx}_{verse['chapter']}_{verse['verse']}"
     
-    st.markdown(f'<div class="verse-container">', unsafe_allow_html=True)
-    st.markdown(f'<div class="verse-reference">{reference}</div>', unsafe_allow_html=True)
+    st.markdown(f"**{reference}**")
     
     # Side-by-side English and Italian with interactive words
     col_en, col_it = st.columns(2)
@@ -465,28 +455,14 @@ for idx, verse in enumerate(todays_verses):
     with col_en:
         st.markdown('<div class="section-title english-title">English</div>', unsafe_allow_html=True)
         english_interactive = make_text_interactive(verse["english"], verse_id, 'en')
-        st.markdown(f'<div class="english-section" style="line-height: 1.8;">{english_interactive}</div>', unsafe_allow_html=True)
+        st.markdown(f'{english_interactive}', unsafe_allow_html=True)
     
     with col_it:
         st.markdown('<div class="section-title italian-title">Italiano</div>', unsafe_allow_html=True)
         italian_interactive = make_text_interactive(verse.get('italian', ''), verse_id, 'it')
-        st.markdown(f'<div class="italian-section" style="line-height: 1.8;">{italian_interactive}</div>', unsafe_allow_html=True)
+        st.markdown(f'{italian_interactive}', unsafe_allow_html=True)
     
-    # Italian audio for individual verse - generate only on demand
-    if verse.get('italian', ''):
-        with st.expander("🔊 Ascolta questo versetto", expanded=False):
-            col1, col2 = st.columns([1, 3])
-            with col1:
-                if st.button("▶️ Genera audio", key=f"audio_btn_{idx}"):
-                    st.session_state[f"play_audio_{idx}"] = True
-            
-            if st.session_state.get(f"play_audio_{idx}"):
-                with col2:
-                    st.info("Generando audio...")
-                    audio_html = text_to_speech_link(verse['italian'], 'it')
-                    st.markdown(audio_html, unsafe_allow_html=True)
-    
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.divider()
 
 # Footer
 st.divider()
