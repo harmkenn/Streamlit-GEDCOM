@@ -184,6 +184,7 @@ st.markdown("""
         margin-bottom: 10px;
         font-size: 0.95em;
         line-height: 1.6;
+        color: #262730 !important;
     }
     
     .italian-section {
@@ -192,6 +193,7 @@ st.markdown("""
         border-radius: 6px;
         font-size: 0.95em;
         line-height: 1.6;
+        color: #262730 !important;
     }
     
     .section-title {
