@@ -442,6 +442,15 @@ for idx, verse in enumerate(todays_verses):
         italian_interactive = make_text_interactive(verse.get('italian', ''), verse_id, 'it')
         st.markdown(f'{italian_interactive}', unsafe_allow_html=True)
     
+    # Audio player for individual verse
+    if verse.get('italian', ''):
+        if st.button("🔊 Play Italian", key=f"audio_btn_{idx}"):
+            st.session_state[f"play_audio_{idx}"] = True
+        
+        if st.session_state.get(f"play_audio_{idx}"):
+            audio_html = text_to_speech_link(verse['italian'], 'it')
+            st.markdown(audio_html, unsafe_allow_html=True)
+    
     st.divider()
 
 # Footer
