@@ -88,7 +88,7 @@ def get_verses_for_day(day_num, all_verses):
     return all_verses[start_idx:end_idx] if start_idx < len(all_verses) else all_verses[:VERSES_PER_DAY]
 
 def text_to_speech_link(text, lang='it'):
-    """Generate audio link for text using gTTS with disk caching"""
+    """Generate audio link for text using gTTS with disk caching and retry logic"""
     import hashlib
     import time
     
@@ -106,6 +106,9 @@ def text_to_speech_link(text, lang='it'):
             pass
     
     try:
+        # Add delay to avoid rate limiting (Google gTTS is very strict)
+        time.sleep(0.5)
+        
         tts = gTTS(text=text, lang=lang, slow=False)
         audio_bytes = BytesIO()
         tts.write_to_fp(audio_bytes)
@@ -125,9 +128,16 @@ def text_to_speech_link(text, lang='it'):
     except Exception as e:
         error_msg = str(e)
         if "429" in error_msg:
-            return f"<p style='color: orange; font-size: 0.9em;'>⚠️ Audio temporarily unavailable (rate limit). Please try again in a moment.</p>"
+            return f"""
+            <div style='background-color: #FEF3C7; border-left: 4px solid #F59E0B; padding: 12px; border-radius: 5px; margin-bottom: 16px; font-size: 0.9em;'>
+                <strong>⚠️ Audio Service Rate Limited</strong><br>
+                Google's text-to-speech service is temporarily overloaded. Please wait a few minutes and try again.
+                <br><br>
+                <em>Tip: The app caches audio files, so previously generated audio will load instantly.</em>
+            </div>
+            """
         else:
-            return f"<p style='color: red; font-size: 0.9em;'>Audio error: {error_msg}</p>"
+            return f"<p style='color: red; font-size: 0.9em;'>❌ Audio error: {error_msg}</p>"
 
 def make_text_interactive(text, verse_id, language='en'):
     """Convert text into clickable words with translation capability"""
