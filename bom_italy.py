@@ -1,10 +1,11 @@
 import streamlit as st
 from datetime import datetime
 import json
-from gtts import gTTS
 import base64
 from io import BytesIO
 import os
+import pyttsx3
+import hashlib
 
 # Try to import translator, install if needed
 try:
@@ -88,56 +89,53 @@ def get_verses_for_day(day_num, all_verses):
     return all_verses[start_idx:end_idx] if start_idx < len(all_verses) else all_verses[:VERSES_PER_DAY]
 
 def text_to_speech_link(text, lang='it'):
-    """Generate audio link for text using gTTS with disk caching and retry logic"""
-    import hashlib
-    import time
+    """Generate audio link for text using pyttsx3 (offline, no download)"""
     
     # Create a cache key from the text
     cache_key = hashlib.md5(f"{text}_{lang}".encode()).hexdigest()
-    cache_file = f".audio_cache_{cache_key}.mp3"
+    cache_file = f".audio_cache_{cache_key}.wav"
     
     # Check if cached on disk
     if os.path.exists(cache_file):
         try:
             with open(cache_file, 'rb') as f:
                 b64 = base64.b64encode(f.read()).decode()
-                return f'<audio controls style="width: 100%; max-width: 100%;"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>'
+                return f'<audio controls style="width: 100%; max-width: 100%;"><source src="data:audio/wav;base64,{b64}" type="audio/wav"></audio>'
         except:
             pass
     
     try:
-        # Add delay to avoid rate limiting (Google gTTS is very strict)
-        time.sleep(0.5)
+        # Initialize pyttsx3 engine
+        engine = pyttsx3.init()
+        engine.setProperty('rate', 150)  # Speech rate
         
-        tts = gTTS(text=text, lang=lang, slow=False)
-        audio_bytes = BytesIO()
-        tts.write_to_fp(audio_bytes)
-        audio_bytes.seek(0)
+        # Save to temporary file
+        temp_file = f".temp_{cache_key}.wav"
+        engine.save_to_file(text, temp_file)
+        engine.runAndWait()
         
-        # Save to disk cache
+        # Read and encode to base64
+        with open(temp_file, 'rb') as f:
+            audio_data = f.read()
+        
+        # Cache the file
         try:
             with open(cache_file, 'wb') as f:
-                f.write(audio_bytes.getvalue())
+                f.write(audio_data)
         except:
             pass
         
-        audio_bytes.seek(0)
-        b64 = base64.b64encode(audio_bytes.read()).decode()
-        result = f'<audio controls style="width: 100%; max-width: 100%;"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>'
-        return result
+        # Clean up temp file
+        try:
+            os.remove(temp_file)
+        except:
+            pass
+        
+        b64 = base64.b64encode(audio_data).decode()
+        return f'<audio controls style="width: 100%; max-width: 100%;"><source src="data:audio/wav;base64,{b64}" type="audio/wav"></audio>'
+    
     except Exception as e:
-        error_msg = str(e)
-        if "429" in error_msg:
-            return f"""
-            <div style='background-color: #FEF3C7; border-left: 4px solid #F59E0B; padding: 12px; border-radius: 5px; margin-bottom: 16px; font-size: 0.9em;'>
-                <strong>⚠️ Audio Service Rate Limited</strong><br>
-                Google's text-to-speech service is temporarily overloaded. Please wait a few minutes and try again.
-                <br><br>
-                <em>Tip: The app caches audio files, so previously generated audio will load instantly.</em>
-            </div>
-            """
-        else:
-            return f"<p style='color: red; font-size: 0.9em;'>❌ Audio error: {error_msg}</p>"
+        return f"<p style='color: red; font-size: 0.9em;'>❌ Audio error: {str(e)}</p>"
 
 def make_text_interactive(text, verse_id, language='en'):
     """Convert text into clickable words with translation capability"""
