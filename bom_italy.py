@@ -88,16 +88,35 @@ def get_verses_for_day(day_num, all_verses):
     return all_verses[start_idx:end_idx] if start_idx < len(all_verses) else all_verses[:VERSES_PER_DAY]
 
 def text_to_speech_link(text, lang='it'):
-    """Generate audio link for text using gTTS"""
+    """Generate audio link for text using gTTS with caching"""
+    import hashlib
+    
+    # Create a cache key from the text
+    cache_key = hashlib.md5(f"{text}_{lang}".encode()).hexdigest()
+    
+    # Check if already cached in session
+    if 'audio_cache' not in st.session_state:
+        st.session_state.audio_cache = {}
+    
+    if cache_key in st.session_state.audio_cache:
+        return st.session_state.audio_cache[cache_key]
+    
     try:
         tts = gTTS(text=text, lang=lang, slow=False)
         audio_bytes = BytesIO()
         tts.write_to_fp(audio_bytes)
         audio_bytes.seek(0)
         b64 = base64.b64encode(audio_bytes.read()).decode()
-        return f'<audio controls style="width: 100%; max-width: 100%;"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>'
+        result = f'<audio controls style="width: 100%; max-width: 100%;"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>'
+        # Cache the result
+        st.session_state.audio_cache[cache_key] = result
+        return result
     except Exception as e:
-        return f"<p style='color: red; font-size: 0.9em;'>Audio error: {str(e)}</p>"
+        error_msg = str(e)
+        if "429" in error_msg:
+            return f"<p style='color: orange; font-size: 0.9em;'>⚠️ Audio temporarily unavailable (rate limit). Please try again in a moment.</p>"
+        else:
+            return f"<p style='color: red; font-size: 0.9em;'>Audio error: {error_msg}</p>"
 
 def make_text_interactive(text, verse_id, language='en'):
     """Convert text into clickable words with translation capability"""
