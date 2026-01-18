@@ -11,7 +11,13 @@ st.set_page_config(
     page_title="Book of Mormon Daily Reader",
     page_icon="📖",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="collapsed",
+    theme={
+        "primaryColor": "#4F46E5",
+        "backgroundColor": "#FFFFFF",
+        "secondaryBackgroundColor": "#F3F4F6",
+        "textColor": "#262730"
+    }
 )
 
 # Constants
@@ -366,7 +372,7 @@ for idx, verse in enumerate(todays_verses):
     
     # Italian audio for individual verse
     if verse.get('italian', ''):
-        with st.expander("🔊 Ascolta questo versetto"):
+        with st.expander("🔊 Ascolta questo versetto", expanded=True):
             audio_html = text_to_speech_link(verse['italian'], 'it')
             st.markdown(audio_html, unsafe_allow_html=True)
     
