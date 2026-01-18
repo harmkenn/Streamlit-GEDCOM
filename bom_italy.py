@@ -327,24 +327,22 @@ if 'translation_cache' not in st.session_state:
 if 'pending_translation' not in st.session_state:
     st.session_state.pending_translation = None
 
-# Handle translation display at the top
-translation_col = st.empty()
+# Create a placeholder for translation display
+translation_display = st.empty()
 
-# Check if we need to translate a word (from query params or session)
+# Check if word needs to be translated
 if st.session_state.pending_translation:
-    word = st.session_state.pending_translation
+    word = st.session_state.pending_translation.lower()
     if word not in st.session_state.translation_cache:
-        # Translate the word
         try:
             translation = translate_italian_word(word)
             st.session_state.translation_cache[word] = translation
-        except:
-            st.session_state.translation_cache[word] = "Error translating"
+        except Exception as e:
+            st.session_state.translation_cache[word] = f"Error: {str(e)}"
     
-    # Display the translation
-    trans = st.session_state.translation_cache[word]
-    with translation_col:
-        st.info(f"**{word.title()}**: {trans}")
+    # Show the translation
+    with translation_display:
+        st.success(f"**{st.session_state.pending_translation}** = *{st.session_state.translation_cache[word]}*")
     
     st.session_state.pending_translation = None
 
@@ -446,14 +444,9 @@ for idx, verse in enumerate(todays_verses):
 st.divider()
 st.caption(f"📚 Libro di Mormon | Giorno {day_of_year} di 365")
 
-# Hidden component to handle translation requests via JavaScript
-def show_translations():
-    """Display cached translations as JSON for JavaScript to use"""
-    if st.session_state.translation_cache:
-        st.markdown(f"""
-        <script>
-        window.translationCache = {json.dumps(st.session_state.translation_cache)};
-        </script>
-        """, unsafe_allow_html=True)
-
-show_translations()
+# Handle word translation via URL params
+query_params = st.query_params
+if 'translate_word' in query_params:
+    word = query_params['translate_word']
+    st.session_state.pending_translation = word
+    del query_params['translate_word']
