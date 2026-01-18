@@ -2,10 +2,7 @@
 fuzzywuzzy
 geopandas
 graphviz
-gtts
-keras
 levenshtein
-matplotlib
 matplotlib
 nbformat
 numpy
@@ -15,9 +12,7 @@ pip
 plotly
 pydataset
 pyinstaller
-pypiwin32
 python-gedcom
-pyttsx3
 requests
 scikit-learn
 scipy
@@ -30,3 +25,5 @@ streamlit-aggrid
 thefuzz
 translate
 yfinance
+pyttsx3
+pypiwin32

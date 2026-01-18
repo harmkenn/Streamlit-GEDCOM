@@ -89,54 +89,32 @@ def get_verses_for_day(day_num, all_verses):
     return all_verses[start_idx:end_idx] if start_idx < len(all_verses) else all_verses[:VERSES_PER_DAY]
 
 def text_to_speech_link(text, lang='it'):
-    """Generate audio link for text using pyttsx3 (offline, no download)"""
+    """Generate audio link for text using gTTS (no download button)"""
+    from gtts import gTTS
     
-    # Create a cache key from the text
     cache_key = hashlib.md5(f"{text}_{lang}".encode()).hexdigest()
-    cache_file = f".audio_cache_{cache_key}.wav"
+    cache_file = f".audio_cache_{cache_key}.mp3"
     
-    # Check if cached on disk
+    # Check if cached
     if os.path.exists(cache_file):
         try:
             with open(cache_file, 'rb') as f:
                 b64 = base64.b64encode(f.read()).decode()
-                return f'<audio controls style="width: 100%; max-width: 100%;"><source src="data:audio/wav;base64,{b64}" type="audio/wav"></audio>'
+                return f'<audio controls style="width: 100%; max-width: 100%;"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>'
         except:
             pass
     
     try:
-        # Initialize pyttsx3 engine
-        engine = pyttsx3.init()
-        engine.setProperty('rate', 150)  # Speech rate
+        tts = gTTS(text=text, lang=lang, slow=False)
+        tts.save(cache_file)
         
-        # Save to temporary file
-        temp_file = f".temp_{cache_key}.wav"
-        engine.save_to_file(text, temp_file)
-        engine.runAndWait()
+        with open(cache_file, 'rb') as f:
+            b64 = base64.b64encode(f.read()).decode()
         
-        # Read and encode to base64
-        with open(temp_file, 'rb') as f:
-            audio_data = f.read()
-        
-        # Cache the file
-        try:
-            with open(cache_file, 'wb') as f:
-                f.write(audio_data)
-        except:
-            pass
-        
-        # Clean up temp file
-        try:
-            os.remove(temp_file)
-        except:
-            pass
-        
-        b64 = base64.b64encode(audio_data).decode()
-        return f'<audio controls style="width: 100%; max-width: 100%;"><source src="data:audio/wav;base64,{b64}" type="audio/wav"></audio>'
+        return f'<audio controls style="width: 100%; max-width: 100%;"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>'
     
     except Exception as e:
         return f"<p style='color: red; font-size: 0.9em;'>❌ Audio error: {str(e)}</p>"
-
 def make_text_interactive(text, verse_id, language='en'):
     """Convert text into clickable words with translation capability"""
     import re
