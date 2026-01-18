@@ -2,6 +2,7 @@
 fuzzywuzzy
 geopandas
 graphviz
+gtts
 keras
 levenshtein
 matplotlib

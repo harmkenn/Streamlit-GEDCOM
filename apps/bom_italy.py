@@ -10,7 +10,8 @@ import os
 st.set_page_config(
     page_title="Book of Mormon Daily Reader",
     page_icon="📖",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
 # Constants
@@ -32,20 +33,6 @@ SAMPLE_VERSES = [
         "verse": 2,
         "english": "Yea, I make a record in the language of my father, which consists of the learning of the Jews and the language of the Egyptians.",
         "italian": "Sì, faccio una storia nella lingua di mio padre, che consiste nella cultura dei Giudei e nella lingua degli Egiziani."
-    },
-    {
-        "book": "1 Nephi",
-        "chapter": 1,
-        "verse": 3,
-        "english": "And I know that the record which I make is true; and I make it with mine own hand; and I make it according to my knowledge.",
-        "italian": "E so che la storia che faccio è vera; e la faccio di mia propria mano; e la faccio secondo la mia conoscenza."
-    },
-    {
-        "book": "1 Nephi",
-        "chapter": 1,
-        "verse": 4,
-        "english": "For it came to pass in the commencement of the first year of the reign of Zedekiah, king of Judah, (my father, Lehi, having dwelt at Jerusalem in all his days); and in that same year there came many prophets, prophesying unto the people that they must repent, or the great city Jerusalem must be destroyed.",
-        "italian": "Poiché avvenne che all'inizio del primo anno del regno di Sedechia, re di Giuda, (mio padre Lehi, avendo dimorato a Gerusalemme per tutti i suoi giorni); e in quello stesso anno vennero molti profeti, profetizzando al popolo che esso doveva pentirsi, o la grande città di Gerusalemme sarebbe stata distrutta."
     }
 ]
 
@@ -62,7 +49,9 @@ def load_verses():
 
 def get_day_of_year(date):
     """Calculate day of year from a date"""
-    return (date - datetime(date.year, 1, 1)).days + 1
+    from datetime import date as date_class
+    start_of_year = date_class(date.year, 1, 1)
+    return (date - start_of_year).days + 1
 
 def get_verses_for_day(day_num, all_verses):
     """Get verses for a specific day"""
@@ -70,7 +59,7 @@ def get_verses_for_day(day_num, all_verses):
     end_idx = min(start_idx + VERSES_PER_DAY, len(all_verses))
     return all_verses[start_idx:end_idx] if start_idx < len(all_verses) else all_verses[:VERSES_PER_DAY]
 
-def text_to_speech_link(text, lang='en'):
+def text_to_speech_link(text, lang='it'):
     """Generate audio link for text using gTTS"""
     try:
         tts = gTTS(text=text, lang=lang, slow=False)
@@ -78,60 +67,141 @@ def text_to_speech_link(text, lang='en'):
         tts.write_to_fp(audio_bytes)
         audio_bytes.seek(0)
         b64 = base64.b64encode(audio_bytes.read()).decode()
-        return f'<audio controls><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>'
+        return f'<audio controls style="width: 100%; max-width: 100%;"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>'
     except Exception as e:
-        return f"<p style='color: red;'>Audio error: {str(e)}</p>"
+        return f"<p style='color: red; font-size: 0.9em;'>Audio error: {str(e)}</p>"
 
-# Custom CSS
+# Mobile-optimized CSS
 st.markdown("""
 <style>
-    .verse-container {
-        background-color: #f8f9fa;
-        padding: 20px;
-        border-radius: 10px;
-        margin-bottom: 20px;
-        border-left: 4px solid #4F46E5;
+    /* Mobile-first responsive design */
+    .main > div {
+        padding-top: 1rem;
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
     }
+    
+    .verse-container {
+        background-color: #ffffff;
+        padding: 12px;
+        border-radius: 8px;
+        margin-bottom: 16px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        border-left: 3px solid #4F46E5;
+    }
+    
     .verse-reference {
         color: #4F46E5;
         font-weight: bold;
-        font-size: 1.1em;
-        margin-bottom: 10px;
+        font-size: 1em;
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #e5e7eb;
     }
+    
     .english-section {
-        background-color: #EFF6FF;
-        padding: 15px;
-        border-radius: 8px;
+        background-color: #F3F4F6;
+        padding: 12px;
+        border-radius: 6px;
         margin-bottom: 10px;
+        font-size: 0.95em;
+        line-height: 1.6;
     }
+    
     .italian-section {
-        background-color: #F0FDF4;
-        padding: 15px;
-        border-radius: 8px;
+        background-color: #ECFDF5;
+        padding: 12px;
+        border-radius: 6px;
+        font-size: 0.95em;
+        line-height: 1.6;
     }
+    
     .section-title {
         font-weight: bold;
         margin-bottom: 8px;
+        font-size: 0.85em;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
+    
     .english-title {
-        color: #1E40AF;
+        color: #6B7280;
     }
+    
     .italian-title {
-        color: #166534;
+        color: #059669;
     }
+    
     .header-box {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 30px;
-        border-radius: 10px;
+        padding: 20px 15px;
+        border-radius: 8px;
         color: white;
-        margin-bottom: 20px;
+        margin-bottom: 16px;
+        text-align: center;
     }
+    
+    .header-box h1 {
+        font-size: 1.5em;
+        margin-bottom: 5px;
+    }
+    
+    .header-box p {
+        font-size: 0.9em;
+        margin: 0;
+    }
+    
     .info-box {
         background-color: #FEF3C7;
         border-left: 4px solid #F59E0B;
-        padding: 15px;
+        padding: 12px;
         border-radius: 5px;
-        margin-bottom: 20px;
+        margin-bottom: 16px;
+        font-size: 0.9em;
+    }
+    
+    .success-box {
+        background-color: #D1FAE5;
+        border-left: 4px solid #10B981;
+        padding: 12px;
+        border-radius: 5px;
+        margin-bottom: 16px;
+        font-size: 0.9em;
+    }
+    
+    .day-header {
+        background-color: #F9FAFB;
+        padding: 12px;
+        border-radius: 6px;
+        margin-bottom: 16px;
+        text-align: center;
+        border: 1px solid #E5E7EB;
+    }
+    
+    /* Make buttons full width on mobile */
+    .stButton > button {
+        width: 100%;
+        margin-bottom: 8px;
+    }
+    
+    /* Improve date picker for mobile */
+    .stDateInput {
+        width: 100%;
+    }
+    
+    /* Hide Streamlit branding on mobile */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    
+    /* Compact expander for audio */
+    .streamlit-expanderHeader {
+        font-size: 0.9em;
+        padding: 8px;
+    }
+    
+    /* Audio player styling */
+    audio {
+        margin-top: 8px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -139,112 +209,101 @@ st.markdown("""
 # Header
 st.markdown("""
 <div class="header-box">
-    <h1>📖 Book of Mormon Daily Reader</h1>
-    <p>Read the entire Book of Mormon in 365 days with English and Italian text</p>
+    <h1>📖 Libro di Mormon</h1>
+    <p>Lettura quotidiana in 365 giorni</p>
 </div>
 """, unsafe_allow_html=True)
 
 # Load verses
 all_verses = load_verses()
 
-# Sidebar
-with st.sidebar:
-    st.header("⚙️ Settings")
-    
+# Compact date selector at top
+col1, col2 = st.columns([2, 1])
+with col1:
     selected_date = st.date_input(
-        "Select Reading Date",
+        "📅 Seleziona Data",
         value=datetime.now(),
         min_value=datetime(datetime.now().year, 1, 1),
-        max_value=datetime(datetime.now().year, 12, 31)
+        max_value=datetime(datetime.now().year, 12, 31),
+        label_visibility="collapsed"
     )
-    
+with col2:
     day_of_year = get_day_of_year(selected_date)
-    
-    st.metric("Day of Year", f"{day_of_year} of 365")
-    st.metric("Verses per Day", VERSES_PER_DAY)
-    
-    progress = day_of_year / 365
-    st.progress(progress)
-    st.write(f"Progress: {progress*100:.1f}%")
-    
-    st.divider()
-    
-    st.subheader("📊 Reading Plan")
-    start_verse = (day_of_year - 1) * VERSES_PER_DAY + 1
-    end_verse = min(start_verse + VERSES_PER_DAY - 1, TOTAL_VERSES)
-    st.write(f"**Today's Verses:** {start_verse}–{end_verse}")
-    
-    st.divider()
-    
-    st.subheader("🔊 Audio Options")
-    play_english = st.checkbox("Enable English Audio", value=True)
-    play_italian = st.checkbox("Enable Italian Audio", value=True)
+    st.metric("Giorno", f"{day_of_year}/365", label_visibility="visible")
 
-# Demo notice
-st.markdown("""
-<div class="info-box">
-    <strong>⚠️ Demo Mode:</strong> This app currently shows sample verses from 1 Nephi 1:1-4. 
-    To use the full Book of Mormon, replace SAMPLE_VERSES with the complete dataset of 6,604 verses.
-    <br><br>
-    <strong>Installation Required:</strong> For audio features, install: <code>pip install gtts</code>
-</div>
-""", unsafe_allow_html=True)
+# Progress bar
+progress = day_of_year / 365
+st.progress(progress, text=f"Progresso: {progress*100:.0f}%")
+
+# Dataset status notice
+if len(all_verses) < 100:
+    st.markdown("""
+    <div class="info-box">
+        <strong>⚠️ Modalità Demo</strong><br>
+        Posiziona book_of_mormon_bilingual.json nella stessa directory.
+    </div>
+    """, unsafe_allow_html=True)
+else:
+    verses_with_italian = sum(1 for v in all_verses if v.get('italian', ''))
+    percentage = verses_with_italian / len(all_verses) * 100
+    st.markdown(
+        f'<div class="success-box">'
+        f'<strong>✅ Dataset Completo Caricato!</strong><br>'
+        f'Versetti: {len(all_verses)} | Italiano: {percentage:.0f}%'
+        f'</div>',
+        unsafe_allow_html=True
+    )
 
 # Get today's verses
 todays_verses = get_verses_for_day(day_of_year, all_verses)
 
-# Main content
-st.subheader(f"📅 Reading for Day {day_of_year}: {selected_date.strftime('%B %d, %Y')}")
+# Day header
+start_verse = (day_of_year - 1) * VERSES_PER_DAY + 1
+end_verse = min(start_verse + VERSES_PER_DAY - 1, TOTAL_VERSES)
+st.markdown(
+    f'<div class="day-header">'
+    f'<strong>{selected_date.strftime("%d %B %Y")}</strong><br>'
+    f'<small>Versetti {start_verse}–{end_verse}</small>'
+    f'</div>',
+    unsafe_allow_html=True
+)
+
+# Italian audio for all verses button
+if st.button("🔊 Ascolta Tutti i Versetti in Italiano", use_container_width=True):
+    all_italian = " ".join([v.get('italian', '') for v in todays_verses if v.get('italian', '')])
+    if all_italian:
+        audio_html = text_to_speech_link(all_italian, 'it')
+        st.markdown(audio_html, unsafe_allow_html=True)
+    else:
+        st.warning("Nessun testo italiano disponibile")
+
+st.divider()
 
 # Display verses
 for verse in todays_verses:
     reference = f"{verse['book']} {verse['chapter']}:{verse['verse']}"
     
-    with st.container():
-        st.markdown(f'<div class="verse-container">', unsafe_allow_html=True)
-        st.markdown(f'<div class="verse-reference">{reference}</div>', unsafe_allow_html=True)
-        
-        # English section
-        st.markdown('<div class="english-section">', unsafe_allow_html=True)
-        st.markdown('<div class="section-title english-title">English</div>', unsafe_allow_html=True)
-        st.write(verse['english'])
-        
-        if play_english:
-            with st.expander("🔊 Play English Audio"):
-                audio_html = text_to_speech_link(verse['english'], 'en')
-                st.markdown(audio_html, unsafe_allow_html=True)
-        
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Italian section
-        st.markdown('<div class="italian-section">', unsafe_allow_html=True)
-        st.markdown('<div class="section-title italian-title">Italiano</div>', unsafe_allow_html=True)
-        st.write(verse['italian'])
-        
-        if play_italian:
-            with st.expander("🔊 Play Italian Audio"):
-                audio_html = text_to_speech_link(verse['italian'], 'it')
-                st.markdown(audio_html, unsafe_allow_html=True)
-        
-        st.markdown('</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-# Play all audio section
-st.divider()
-col1, col2 = st.columns(2)
-
-with col1:
-    if st.button("🔊 Play All English", use_container_width=True):
-        all_english = " ".join([v['english'] for v in todays_verses])
-        audio_html = text_to_speech_link(all_english, 'en')
-        st.markdown(audio_html, unsafe_allow_html=True)
-
-with col2:
-    if st.button("🔊 Play All Italian", use_container_width=True):
-        all_italian = " ".join([v['italian'] for v in todays_verses])
-        audio_html = text_to_speech_link(all_italian, 'it')
-        st.markdown(audio_html, unsafe_allow_html=True)
+    st.markdown(f'<div class="verse-container">', unsafe_allow_html=True)
+    st.markdown(f'<div class="verse-reference">{reference}</div>', unsafe_allow_html=True)
+    
+    # English section (expanded by default)
+    with st.expander("📖 English", expanded=True):
+        st.markdown(f'<div style="line-height: 1.6;">{verse["english"]}</div>', unsafe_allow_html=True)
+    
+    # Italian section (main content)
+    st.markdown('<div class="italian-section">', unsafe_allow_html=True)
+    st.markdown('<div class="section-title italian-title">Italiano</div>', unsafe_allow_html=True)
+    st.write(verse.get('italian', 'Traduzione non disponibile'))
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Italian audio for individual verse (expanded by default)
+    if verse.get('italian', ''):
+        with st.expander("🔊 Ascolta questo versetto", expanded=True):
+            audio_html = text_to_speech_link(verse['italian'], 'it')
+            st.markdown(audio_html, unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # Footer
 st.divider()
-st.caption(f"📚 Book of Mormon Daily Reader | Day {day_of_year} of 365 | {VERSES_PER_DAY} verses per day")
+st.caption(f"📚 Libro di Mormon | Giorno {day_of_year} di 365")
