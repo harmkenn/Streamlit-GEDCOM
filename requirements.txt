@@ -15,7 +15,9 @@ pip
 plotly
 pydataset
 pyinstaller
+pypiwin32
 python-gedcom
+pyttsx3
 requests
 scikit-learn
 scipy
