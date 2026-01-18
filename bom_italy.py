@@ -71,6 +71,60 @@ def text_to_speech_link(text, lang='it'):
     except Exception as e:
         return f"<p style='color: red; font-size: 0.9em;'>Audio error: {str(e)}</p>"
 
+def make_text_interactive(text, verse_id, language='en'):
+    """Convert text into clickable words with highlighting capability"""
+    import re
+    # Split on whitespace and punctuation, keeping punctuation
+    words = re.findall(r'\b\w+\b|\W+', text)
+    html = []
+    word_index = 0
+    
+    for item in words:
+        if re.match(r'\w+', item):  # Is a word
+            html.append(f'<span class="word-clickable" data-verse="{verse_id}" data-lang="{language}" data-word-idx="{word_index}">{item}</span>')
+            word_index += 1
+        else:  # Is punctuation/whitespace
+            html.append(item)
+    
+    return ''.join(html)
+
+# JavaScript for word highlighting
+st.markdown("""
+<script>
+function highlightWord(clickedElement) {
+    const verseId = clickedElement.getAttribute('data-verse');
+    const wordIdx = clickedElement.getAttribute('data-word-idx');
+    const lang = clickedElement.getAttribute('data-lang');
+    
+    // Remove all highlights
+    document.querySelectorAll('.word-highlighted').forEach(el => {
+        el.classList.remove('word-highlighted');
+    });
+    
+    // Add highlight to clicked word
+    clickedElement.classList.add('word-highlighted');
+    
+    // Highlight corresponding word in other language
+    const otherLang = lang === 'en' ? 'it' : 'en';
+    const correspondingWord = document.querySelector(
+        `.word-clickable[data-verse="${verseId}"][data-lang="${otherLang}"][data-word-idx="${wordIdx}"]`
+    );
+    
+    if (correspondingWord) {
+        correspondingWord.classList.add('word-highlighted');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.word-clickable').forEach(word => {
+        word.addEventListener('click', function() {
+            highlightWord(this);
+        });
+    });
+});
+</script>
+""", unsafe_allow_html=True)
+
 # Mobile-optimized CSS
 st.markdown("""
 <style>
@@ -97,6 +151,24 @@ st.markdown("""
         margin-bottom: 12px;
         padding-bottom: 8px;
         border-bottom: 1px solid #e5e7eb;
+    }
+    
+    .word-clickable {
+        cursor: pointer;
+        padding: 2px 4px;
+        border-radius: 3px;
+        transition: all 0.2s ease;
+        user-select: none;
+    }
+    
+    .word-clickable:hover {
+        background-color: #DBEAFE;
+    }
+    
+    .word-highlighted {
+        background-color: #FCD34D;
+        font-weight: bold;
+        border: 1px solid #F59E0B;
     }
     
     .english-section {
@@ -280,25 +352,29 @@ if st.button("🔊 Ascolta Tutti i Versetti in Italiano", use_container_width=Tr
 st.divider()
 
 # Display verses
-for verse in todays_verses:
+for idx, verse in enumerate(todays_verses):
     reference = f"{verse['book']} {verse['chapter']}:{verse['verse']}"
+    verse_id = f"verse_{idx}_{verse['chapter']}_{verse['verse']}"
     
     st.markdown(f'<div class="verse-container">', unsafe_allow_html=True)
     st.markdown(f'<div class="verse-reference">{reference}</div>', unsafe_allow_html=True)
     
-    # English section (expanded by default)
-    with st.expander("📖 English", expanded=True):
-        st.markdown(f'<div style="line-height: 1.6;">{verse["english"]}</div>', unsafe_allow_html=True)
+    # Side-by-side English and Italian with interactive words
+    col_en, col_it = st.columns(2)
     
-    # Italian section (main content)
-    st.markdown('<div class="italian-section">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title italian-title">Italiano</div>', unsafe_allow_html=True)
-    st.write(verse.get('italian', 'Traduzione non disponibile'))
-    st.markdown('</div>', unsafe_allow_html=True)
+    with col_en:
+        st.markdown('<div class="section-title english-title">English</div>', unsafe_allow_html=True)
+        english_interactive = make_text_interactive(verse["english"], verse_id, 'en')
+        st.markdown(f'<div class="english-section" style="line-height: 1.8;">{english_interactive}</div>', unsafe_allow_html=True)
     
-    # Italian audio for individual verse (expanded by default)
+    with col_it:
+        st.markdown('<div class="section-title italian-title">Italiano</div>', unsafe_allow_html=True)
+        italian_interactive = make_text_interactive(verse.get('italian', ''), verse_id, 'it')
+        st.markdown(f'<div class="italian-section" style="line-height: 1.8;">{italian_interactive}</div>', unsafe_allow_html=True)
+    
+    # Italian audio for individual verse
     if verse.get('italian', ''):
-        with st.expander("🔊 Ascolta questo versetto", expanded=True):
+        with st.expander("🔊 Ascolta questo versetto"):
             audio_html = text_to_speech_link(verse['italian'], 'it')
             st.markdown(audio_html, unsafe_allow_html=True)
     
