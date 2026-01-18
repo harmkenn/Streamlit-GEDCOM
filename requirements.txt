@@ -26,4 +26,5 @@ SpeechRecognition
 streamlit
 streamlit-aggrid
 thefuzz
+translate
 yfinance
