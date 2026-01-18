@@ -81,7 +81,7 @@ def make_text_interactive(text, verse_id, language='en'):
     
     for item in words:
         if re.match(r'\w+', item):  # Is a word
-            html.append(f'<span class="word-clickable" data-verse="{verse_id}" data-lang="{language}" data-word-idx="{word_index}">{item}</span>')
+            html.append(f'<span class="word-clickable" data-verse="{verse_id}" data-lang="{language}" data-word-idx="{word_index}" onclick="highlightWord(this)">{item}</span>')
             word_index += 1
         else:  # Is punctuation/whitespace
             html.append(item)
@@ -96,8 +96,8 @@ function highlightWord(clickedElement) {
     const wordIdx = clickedElement.getAttribute('data-word-idx');
     const lang = clickedElement.getAttribute('data-lang');
     
-    // Remove all highlights
-    document.querySelectorAll('.word-highlighted').forEach(el => {
+    // Remove all highlights from this verse
+    document.querySelectorAll(`.word-clickable[data-verse="${verseId}"]`).forEach(el => {
         el.classList.remove('word-highlighted');
     });
     
@@ -114,14 +114,6 @@ function highlightWord(clickedElement) {
         correspondingWord.classList.add('word-highlighted');
     }
 }
-
-document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.word-clickable').forEach(word => {
-        word.addEventListener('click', function() {
-            highlightWord(this);
-        });
-    });
-});
 </script>
 """, unsafe_allow_html=True)
 
