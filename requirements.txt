@@ -25,5 +25,4 @@ streamlit-aggrid
 thefuzz
 translate
 yfinance
-pyttsx3
-pypiwin32
+
