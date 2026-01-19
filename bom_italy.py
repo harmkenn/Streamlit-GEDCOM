@@ -223,7 +223,7 @@ for verse in todays_verses:
                 italian_phrase = translate_to_italian(eng_phrase)
                 st.markdown(f"<span style='color: #ef4444;'><strong>IT:</strong></span> {italian_phrase}", unsafe_allow_html=True)
             
-            st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height: 2px;'></div>", unsafe_allow_html=True)
     
     # Audio for complete verse
     st.markdown("---")
