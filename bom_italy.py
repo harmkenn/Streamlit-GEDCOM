@@ -75,14 +75,14 @@ def get_verses_for_day(day_num, all_verses):
 
 @st.cache_data
 def translate_to_italian(text):
-    """Translate English text to Italian using googletrans"""
+    """Translate English text to Italian using deep-translator"""
     try:
-        from googletrans import Translator
-        translator = Translator()
-        translation = translator.translate(text, src_lang='en', dest_lang='it')
-        return translation['text']
+        from deep_translator import GoogleTranslator
+        translator = GoogleTranslator(source='en', target='it')
+        translation = translator.translate(text)
+        return translation
     except ImportError:
-        return "[Translation unavailable - install googletrans]"
+        return "[Translation unavailable - install deep-translator: pip install deep-translator]"
     except Exception as e:
         return f"[Translation error: {str(e)}]"
 
