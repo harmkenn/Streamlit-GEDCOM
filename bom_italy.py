@@ -156,50 +156,37 @@ def text_to_speech(text, lang='it'):
         st.error(f"TTS error: {str(e)}")
         return None
 
-# Mobile-optimized CSS
+# Mobile-optimized CSS - System theme
 st.markdown("""
 <style>
-    [data-testid="stApp"] {
-        background-color: #FFFFFF !important;
-    }
-    
-    [data-testid="stHeader"] {
-        background-color: #FFFFFF !important;
-    }
-    
-    body {
-        background-color: #FFFFFF !important;
-        color: #262730 !important;
-    }
-    
     .main > div {
         padding-top: 1rem;
         padding-left: 0.5rem;
         padding-right: 0.5rem;
     }
     
-    .verse-container {
-        background-color: #ffffff;
-        padding: 12px;
-        border-radius: 8px;
-        margin-bottom: 16px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        border-left: 3px solid #4F46E5;
-    }
-    
-    .verse-reference {
-        color: #4F46E5;
-        font-weight: bold;
-        font-size: 1em;
-        margin-bottom: 12px;
-        padding-bottom: 8px;
-        border-bottom: 1px solid #e5e7eb;
-    }
-    
     .verse-text {
         font-size: 0.95em;
         line-height: 1.6;
-        color: #262730;
+    }
+    
+    hr {
+        margin: 1rem 0;
+    }
+    
+    /* Ensure text is visible in both light and dark modes */
+    h1, h2, h3 {
+        color: var(--text-color) !important;
+    }
+    
+    /* Force contrast for title specifically */
+    [data-testid="stApp"] h1 {
+        color: inherit !important;
+    }
+    
+    /* Ensure proper contrast for all text elements */
+    .stMarkdown, p, span, div {
+        color: inherit;
     }
     
     #MainMenu {visibility: hidden;}
@@ -264,11 +251,11 @@ for verse in todays_verses:
             col1, col2 = st.columns([1, 1])
             
             with col1:
-                st.markdown(f"<div class='verse-text' style='color: #1e40af;'><strong>EN:</strong> {eng_phrase}</div>", unsafe_allow_html=True)
+                st.markdown(f"**EN:** {eng_phrase}")
             
             with col2:
                 italian_phrase = translate_to_italian(eng_phrase)
-                st.markdown(f"<div class='verse-text' style='color: #dc2626;'><strong>IT:</strong> {italian_phrase}</div>", unsafe_allow_html=True)
+                st.markdown(f"**IT:** {italian_phrase}")
             
             st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
     
