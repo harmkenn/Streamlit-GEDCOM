@@ -3,6 +3,7 @@ deep-translator
 fuzzywuzzy
 geopandas
 googletrans
+gtts
 levenshtein
 matplotlib
 nbformat
