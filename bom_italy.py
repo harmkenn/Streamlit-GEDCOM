@@ -251,11 +251,11 @@ for verse in todays_verses:
             col1, col2 = st.columns([1, 1])
             
             with col1:
-                st.markdown(f"**EN:** {eng_phrase}")
+                st.markdown(f"<span style='color: #3b82f6;'><strong>EN:</strong></span> {eng_phrase}", unsafe_allow_html=True)
             
             with col2:
                 italian_phrase = translate_to_italian(eng_phrase)
-                st.markdown(f"**IT:** {italian_phrase}")
+                st.markdown(f"<span style='color: #ef4444;'><strong>IT:</strong></span> {italian_phrase}", unsafe_allow_html=True)
             
             st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
     
