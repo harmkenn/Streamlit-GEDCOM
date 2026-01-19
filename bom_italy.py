@@ -1,5 +1,5 @@
 import streamlit as st
-from datetime import datetime
+from datetime import datetime, date
 import json
 import os
 
@@ -62,17 +62,47 @@ def load_verses():
             return SAMPLE_VERSES
     return SAMPLE_VERSES
 
-def get_day_of_year(date):
+def get_day_of_year(input_date):
     """Calculate day of year from a date"""
-    from datetime import date as date_class
-    start_of_year = date_class(date.year, 1, 1)
-    return (date - start_of_year).days + 1
+    start_of_year = date(input_date.year, 1, 1)
+    return (input_date - start_of_year).days + 1
 
 def get_verses_for_day(day_num, all_verses):
     """Get verses for a specific day"""
     start_idx = (day_num - 1) * VERSES_PER_DAY
     end_idx = min(start_idx + VERSES_PER_DAY, len(all_verses))
     return all_verses[start_idx:end_idx] if start_idx < len(all_verses) else all_verses[:VERSES_PER_DAY]
+
+@st.cache_data
+def translate_to_italian(text):
+    """Translate English text to Italian using googletrans"""
+    try:
+        from googletrans import Translator
+        translator = Translator()
+        translation = translator.translate(text, src='en', dest='it')
+        return translation.text
+    except ImportError:
+        return "[Translation unavailable - install googletrans: pip install googletrans==3.1.0a0]"
+    except Exception as e:
+        return f"[Translation error: {str(e)}]"
+
+@st.cache_data
+def text_to_speech(text, lang='it'):
+    """Convert text to speech using gTTS and return audio bytes"""
+    try:
+        from gtts import gTTS
+        from io import BytesIO
+        
+        tts = gTTS(text=text, lang=lang, slow=False)
+        audio_bytes = BytesIO()
+        tts.write_to_fp(audio_bytes)
+        audio_bytes.seek(0)
+        return audio_bytes.read()
+    except ImportError:
+        return None
+    except Exception as e:
+        st.error(f"TTS error: {str(e)}")
+        return None
 
 # Mobile-optimized CSS
 st.markdown("""
@@ -125,30 +155,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-@st.cache_data
-def translate_to_italian(text):
-    """Translate English text to Italian using Google Translate"""
-    try:
-        from google.cloud import translate_v2
-        import google.auth
-        
-        # Try using google-cloud-translate
-        credentials, project = google.auth.default()
-        translate_client = translate_v2.Client(credentials=credentials)
-        result = translate_client.translate_text(text, target_language_code='it')
-        return result['translatedText']
-    except:
-        pass
-    
-    try:
-        # Fallback to googletrans (free, no API key needed)
-        from googletrans import Translator
-        translator = Translator()
-        translation = translator.translate(text, dest_lang='it')
-        return translation.text
-    except Exception as e:
-        return f"[Translation unavailable: {str(e)}]"
-
 # Header
 st.title("📖 Book of Mormon Daily Reader")
 st.caption("Daily reading in 365 days")
@@ -166,6 +172,7 @@ with col1:
         max_value=datetime(datetime.now().year, 12, 31),
         label_visibility="collapsed"
     )
+
 with col2:
     day_of_year = get_day_of_year(selected_date)
     st.metric("Day", f"{day_of_year}/365", label_visibility="visible")
@@ -188,7 +195,6 @@ start_verse = (day_of_year - 1) * VERSES_PER_DAY + 1
 end_verse = min(start_verse + VERSES_PER_DAY - 1, TOTAL_VERSES)
 st.subheader(f"{selected_date.strftime('%B %d, %Y')}")
 st.caption(f"Verses {start_verse}–{end_verse}")
-
 st.divider()
 
 # Display verses
@@ -203,7 +209,20 @@ for verse in todays_verses:
     # Italian translation (cached)
     st.markdown("**Italiano**")
     italian_text = translate_to_italian(verse['english'])
-    st.markdown(f"<div class='verse-text'>{italian_text}</div>", unsafe_allow_html=True)
+    
+    # Create columns for text and audio button
+    col_text, col_audio = st.columns([4, 1])
+    
+    with col_text:
+        st.markdown(f"<div class='verse-text'>{italian_text}</div>", unsafe_allow_html=True)
+    
+    with col_audio:
+        if not italian_text.startswith("["):  # Only show audio if translation succeeded
+            audio_data = text_to_speech(italian_text)
+            if audio_data:
+                st.audio(audio_data, format='audio/mp3')
+            else:
+                st.caption("🔊 Install gTTS: pip install gtts")
     
     st.divider()
 
