@@ -89,52 +89,18 @@ def translate_to_italian(text):
 def split_into_phrases(text):
     """Split text into phrases based on natural breaks"""
     import re
-    # Split on common phrase boundaries: commas, semicolons, conjunctions
-    # Keep the punctuation with the phrase
+    
+    # Remove trailing period
+    text = text.rstrip('.')
+    
+    # Split on semicolons first (these are major breaks)
+    semicolon_parts = text.split(';')
+    
     phrases = []
-    
-    # First split on semicolons and periods (but not end period)
-    parts = re.split(r'([;])', text.rstrip('.'))
-    current = ""
-    
-    for part in parts:
-        if part in [';']:
-            current += part
-            phrases.append(current.strip())
-            current = ""
-        else:
-            current += part
-    
-    if current.strip():
-        # Now split remaining on commas and common conjunctions
-        subparts = re.split(r'(,\s+(?:and|but|or|for|nor|yet|so|therefore|nevertheless|yea|thus|behold)\s+)', current, flags=re.IGNORECASE)
-        temp = ""
-        for i, subpart in enumerate(subparts):
-            temp += subpart
-            if ',' in subpart and i < len(subparts) - 1:
-                phrases.append(temp.strip())
-                temp = ""
-        if temp.strip():
-            phrases.append(temp.strip())
-    
-    # If we didn't get good splits, fall back to comma splits
-    if len(phrases) <= 1:
-        phrases = [p.strip() for p in text.rstrip('.').split(',') if p.strip()]
-    
-    # If still only one phrase, try to split on 'and', 'therefore', etc.
-    if len(phrases) == 1:
-        phrases = re.split(r'\s+(and|therefore|nevertheless|yea|thus|behold)\s+', text.rstrip('.'), flags=re.IGNORECASE)
-        # Recombine to keep conjunctions
-        result = []
-        i = 0
-        while i < len(phrases):
-            if i + 1 < len(phrases) and phrases[i + 1].lower() in ['and', 'therefore', 'nevertheless', 'yea', 'thus', 'behold']:
-                result.append(phrases[i].strip())
-                i += 2
-            else:
-                result.append(phrases[i].strip())
-                i += 1
-        phrases = [p for p in result if p]
+    for part in semicolon_parts:
+        # Now split each part on commas
+        comma_parts = [p.strip() for p in part.split(',') if p.strip()]
+        phrases.extend(comma_parts)
     
     return phrases if phrases else [text]
 
