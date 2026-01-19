@@ -86,6 +86,58 @@ def translate_to_italian(text):
     except Exception as e:
         return f"[Translation error: {str(e)}]"
 
+def split_into_phrases(text):
+    """Split text into phrases based on natural breaks"""
+    import re
+    # Split on common phrase boundaries: commas, semicolons, conjunctions
+    # Keep the punctuation with the phrase
+    phrases = []
+    
+    # First split on semicolons and periods (but not end period)
+    parts = re.split(r'([;])', text.rstrip('.'))
+    current = ""
+    
+    for part in parts:
+        if part in [';']:
+            current += part
+            phrases.append(current.strip())
+            current = ""
+        else:
+            current += part
+    
+    if current.strip():
+        # Now split remaining on commas and common conjunctions
+        subparts = re.split(r'(,\s+(?:and|but|or|for|nor|yet|so|therefore|nevertheless|yea|thus|behold)\s+)', current, flags=re.IGNORECASE)
+        temp = ""
+        for i, subpart in enumerate(subparts):
+            temp += subpart
+            if ',' in subpart and i < len(subparts) - 1:
+                phrases.append(temp.strip())
+                temp = ""
+        if temp.strip():
+            phrases.append(temp.strip())
+    
+    # If we didn't get good splits, fall back to comma splits
+    if len(phrases) <= 1:
+        phrases = [p.strip() for p in text.rstrip('.').split(',') if p.strip()]
+    
+    # If still only one phrase, try to split on 'and', 'therefore', etc.
+    if len(phrases) == 1:
+        phrases = re.split(r'\s+(and|therefore|nevertheless|yea|thus|behold)\s+', text.rstrip('.'), flags=re.IGNORECASE)
+        # Recombine to keep conjunctions
+        result = []
+        i = 0
+        while i < len(phrases):
+            if i + 1 < len(phrases) and phrases[i + 1].lower() in ['and', 'therefore', 'nevertheless', 'yea', 'thus', 'behold']:
+                result.append(phrases[i].strip())
+                i += 2
+            else:
+                result.append(phrases[i].strip())
+                i += 1
+        phrases = [p for p in result if p]
+    
+    return phrases if phrases else [text]
+
 @st.cache_data
 def text_to_speech(text, lang='it'):
     """Convert text to speech using gTTS and return audio bytes"""
@@ -202,27 +254,35 @@ for verse in todays_verses:
     reference = f"{verse['book']} {verse['chapter']}:{verse['verse']}"
     st.markdown(f"### {reference}")
     
-    # English version
-    st.markdown("**English**")
-    st.markdown(f"<div class='verse-text'>{verse['english']}</div>", unsafe_allow_html=True)
+    # Split verse into phrases
+    english_phrases = split_into_phrases(verse['english'])
     
-    # Italian translation (cached)
-    st.markdown("**Italiano**")
-    italian_text = translate_to_italian(verse['english'])
+    # Create a container for phrase-by-phrase display
+    for i, eng_phrase in enumerate(english_phrases):
+        # Create a subtle container for each phrase pair
+        with st.container():
+            col1, col2 = st.columns([1, 1])
+            
+            with col1:
+                st.markdown(f"<div class='verse-text' style='color: #1e40af;'><strong>EN:</strong> {eng_phrase}</div>", unsafe_allow_html=True)
+            
+            with col2:
+                italian_phrase = translate_to_italian(eng_phrase)
+                st.markdown(f"<div class='verse-text' style='color: #dc2626;'><strong>IT:</strong> {italian_phrase}</div>", unsafe_allow_html=True)
+            
+            st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
     
-    # Create columns for text and audio button
-    col_text, col_audio = st.columns([4, 1])
-    
-    with col_text:
-        st.markdown(f"<div class='verse-text'>{italian_text}</div>", unsafe_allow_html=True)
-    
-    with col_audio:
-        if not italian_text.startswith("["):  # Only show audio if translation succeeded
-            audio_data = text_to_speech(italian_text)
+    # Audio for complete verse
+    st.markdown("---")
+    col_audio_label, col_audio_player = st.columns([3, 1])
+    with col_audio_label:
+        st.markdown("**🔊 Listen to complete verse in Italian:**")
+    with col_audio_player:
+        full_italian = translate_to_italian(verse['english'])
+        if not full_italian.startswith("["):
+            audio_data = text_to_speech(full_italian)
             if audio_data:
                 st.audio(audio_data, format='audio/mp3')
-            else:
-                st.caption("🔊 Install gTTS: pip install gtts")
     
     st.divider()
 
