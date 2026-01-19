@@ -79,10 +79,10 @@ def translate_to_italian(text):
     try:
         from googletrans import Translator
         translator = Translator()
-        translation = translator.translate(text, src='en', dest='it')
-        return translation.text
+        translation = translator.translate(text, src_lang='en', dest_lang='it')
+        return translation['text']
     except ImportError:
-        return "[Translation unavailable - install googletrans: pip install googletrans==3.1.0a0]"
+        return "[Translation unavailable - install googletrans]"
     except Exception as e:
         return f"[Translation error: {str(e)}]"
 
