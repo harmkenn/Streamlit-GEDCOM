@@ -1,17 +1,7 @@
 import streamlit as st
 from datetime import datetime
 import json
-import base64
-from io import BytesIO
 import os
-import pyttsx3
-import hashlib
-
-# Try to import translator, install if needed
-try:
-    from translate import Translator
-except ImportError:
-    Translator = None
 
 # Page config
 st.set_page_config(
@@ -31,50 +21,46 @@ SAMPLE_VERSES = [
         "book": "1 Nephi",
         "chapter": 1,
         "verse": 1,
-        "english": "I, Nephi, having been born of goodly parents, therefore I was taught somewhat in all the learning of my father; and having seen many afflictions in the course of my days, nevertheless, having been highly favored of the Lord in all my days; yea, having had a great knowledge of the goodness and the mysteries of God, therefore I make a record of my proceedings in my days.",
-        "italian": "Io, Nefi, essendo nato da buoni genitori, fui quindi istruito in una certa misura in tutta la cultura di mio padre; e avendo avuto molte afflizioni nel corso dei miei giorni, nondimeno, essendo stato grandemente favorito dal Signore in tutti i miei giorni; sì, avendo avuto una grande conoscenza della bontà e dei misteri di Dio, faccio quindi una storia dei miei atti nei miei giorni."
+        "english": "I, Nephi, having been born of goodly parents, therefore I was taught somewhat in all the learning of my father; and having seen many afflictions in the course of my days, nevertheless, having been highly favored of the Lord in all my days; yea, having had a great knowledge of the goodness and the mysteries of God, therefore I make a record of my proceedings in my days."
     },
     {
         "book": "1 Nephi",
         "chapter": 1,
         "verse": 2,
-        "english": "Yea, I make a record in the language of my father, which consists of the learning of the Jews and the language of the Egyptians.",
-        "italian": "Sì, faccio una storia nella lingua di mio padre, che consiste nella cultura dei Giudei e nella lingua degli Egiziani."
+        "english": "Yea, I make a record in the language of my father, which consists of the learning of the Jews and the language of the Egyptians."
     }
 ]
 
 @st.cache_data
 def load_verses():
-    """Load Book of Mormon verses from JSON file or return sample data"""
-    if os.path.exists('book_of_mormon_bilingual.json'):
+    """Load Book of Mormon verses from JSON file and flatten into a list"""
+    if os.path.exists('book_of_mormon.json'):
         try:
-            with open('book_of_mormon_bilingual.json', 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except:
+            with open('book_of_mormon.json', 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                
+                # Flatten the nested structure into a single list of verses
+                verses_list = []
+                
+                if isinstance(data, dict) and 'books' in data:
+                    for book_data in data['books']:
+                        book_name = book_data.get('book', 'Unknown')
+                        for chapter_data in book_data.get('chapters', []):
+                            chapter_num = chapter_data.get('chapter', 0)
+                            for verse_data in chapter_data.get('verses', []):
+                                verse_entry = {
+                                    'book': book_name,
+                                    'chapter': chapter_num,
+                                    'verse': verse_data.get('verse', 0),
+                                    'english': verse_data.get('text', '')
+                                }
+                                verses_list.append(verse_entry)
+                
+                return verses_list if verses_list else SAMPLE_VERSES
+        except Exception as e:
+            st.error(f"Error loading verses: {e}")
             return SAMPLE_VERSES
     return SAMPLE_VERSES
-
-def translate_italian_word(italian_word):
-    """Translate an Italian word to English using available method"""
-    italian_word_lower = italian_word.lower()
-    
-    # Try using translate library first
-    if Translator:
-        try:
-            translator = Translator(from_lang='it', to_lang='en')
-            translation = translator.translate(italian_word)
-            return translation if translation else italian_word
-        except:
-            pass
-    
-    # Fallback: try googletrans
-    try:
-        from googletrans import Translator as GoogleTranslator
-        gt = GoogleTranslator()
-        result = gt.translate(italian_word, src_language='it', dest_language='en')
-        return result if result else italian_word
-    except:
-        return "Translation unavailable"
 
 def get_day_of_year(date):
     """Calculate day of year from a date"""
@@ -88,81 +74,9 @@ def get_verses_for_day(day_num, all_verses):
     end_idx = min(start_idx + VERSES_PER_DAY, len(all_verses))
     return all_verses[start_idx:end_idx] if start_idx < len(all_verses) else all_verses[:VERSES_PER_DAY]
 
-def text_to_speech_link(text, lang='it'):
-    """Generate audio link for text using gTTS (no download button)"""
-    from gtts import gTTS
-    
-    cache_key = hashlib.md5(f"{text}_{lang}".encode()).hexdigest()
-    cache_file = f".audio_cache_{cache_key}.mp3"
-    
-    # Check if cached
-    if os.path.exists(cache_file):
-        try:
-            with open(cache_file, 'rb') as f:
-                b64 = base64.b64encode(f.read()).decode()
-                return f'<audio controls style="width: 100%; max-width: 100%;"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>'
-        except:
-            pass
-    
-    try:
-        tts = gTTS(text=text, lang=lang, slow=False)
-        tts.save(cache_file)
-        
-        with open(cache_file, 'rb') as f:
-            b64 = base64.b64encode(f.read()).decode()
-        
-        return f'<audio controls style="width: 100%; max-width: 100%;"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>'
-    
-    except Exception as e:
-        return f"<p style='color: red; font-size: 0.9em;'>❌ Audio error: {str(e)}</p>"
-def make_text_interactive(text, verse_id, language='en'):
-    """Convert text into clickable words with translation capability"""
-    import re
-    import json
-    
-    # Split on whitespace and punctuation, keeping punctuation
-    words = re.findall(r'\b\w+\b|\W+', text)
-    html = []
-    word_index = 0
-    
-    for item in words:
-        if re.match(r'\w+', item):  # Is a word
-            if language == 'it':
-                # Create unique ID for each word instance
-                word_id = f"{verse_id}_word_{word_index}_{item}"
-                # Italian words are clickable for translation - use button instead
-                html.append(f'<button class="italian-word-btn" data-word="{item}" data-word-id="{word_id}" style="background: none; border: none; color: #059669; cursor: pointer; padding: 0; border-bottom: 1px dotted #059669; font-size: inherit; font-family: inherit;" title="Click for translation">{item}</button>')
-            else:
-                # English words are just displayed
-                html.append(f'<span>{item}</span>')
-            word_index += 1
-        else:  # Is punctuation/whitespace
-            html.append(item)
-    
-    return ''.join(html)
-
-# JavaScript for word translation
-st.markdown("""
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Attach click handlers to all Italian word buttons
-    document.querySelectorAll('.italian-word-btn').forEach(btn => {
-        btn.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            const word = this.getAttribute('data-word');
-            window.parent.postMessage({type: 'translate-word', word: word}, '*');
-        });
-    });
-});
-</script>
-""", unsafe_allow_html=True)
-
-
 # Mobile-optimized CSS
 st.markdown("""
 <style>
-    /* Force light mode */
     [data-testid="stApp"] {
         background-color: #FFFFFF !important;
     }
@@ -176,7 +90,6 @@ st.markdown("""
         color: #262730 !important;
     }
     
-    /* Mobile-first responsive design */
     .main > div {
         padding-top: 1rem;
         padding-left: 0.5rem;
@@ -201,162 +114,44 @@ st.markdown("""
         border-bottom: 1px solid #e5e7eb;
     }
     
-    .word-clickable {
-        cursor: pointer;
-        padding: 2px 4px;
-        border-radius: 3px;
-        transition: all 0.2s ease;
-        user-select: none;
-    }
-    
-    .word-clickable:hover {
-        background-color: #DBEAFE;
-    }
-    
-    .word-highlighted {
-        background-color: #FCD34D;
-        font-weight: bold;
-        border: 1px solid #F59E0B;
-    }
-    
-    .english-section {
-        background-color: #F3F4F6;
-        padding: 12px;
-        border-radius: 6px;
-        margin-bottom: 10px;
+    .verse-text {
         font-size: 0.95em;
         line-height: 1.6;
-        color: #262730 !important;
+        color: #262730;
     }
     
-    .italian-section {
-        background-color: #ECFDF5;
-        padding: 12px;
-        border-radius: 6px;
-        font-size: 0.95em;
-        line-height: 1.6;
-        color: #262730 !important;
-    }
-    
-    .section-title {
-        font-weight: bold;
-        margin-bottom: 8px;
-        font-size: 0.85em;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    
-    .english-title {
-        color: #6B7280;
-    }
-    
-    .italian-title {
-        color: #059669;
-    }
-    
-    .header-box {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 20px 15px;
-        border-radius: 8px;
-        color: white;
-        margin-bottom: 16px;
-        text-align: center;
-    }
-    
-    .header-box h1 {
-        font-size: 1.5em;
-        margin-bottom: 5px;
-    }
-    
-    .header-box p {
-        font-size: 0.9em;
-        margin: 0;
-    }
-    
-    .info-box {
-        background-color: #FEF3C7;
-        border-left: 4px solid #F59E0B;
-        padding: 12px;
-        border-radius: 5px;
-        margin-bottom: 16px;
-        font-size: 0.9em;
-    }
-    
-    .success-box {
-        background-color: #D1FAE5;
-        border-left: 4px solid #10B981;
-        padding: 12px;
-        border-radius: 5px;
-        margin-bottom: 16px;
-        font-size: 0.9em;
-    }
-    
-    .day-header {
-        background-color: #F9FAFB;
-        padding: 12px;
-        border-radius: 6px;
-        margin-bottom: 16px;
-        text-align: center;
-        border: 1px solid #E5E7EB;
-    }
-    
-    /* Make buttons full width on mobile */
-    .stButton > button {
-        width: 100%;
-        margin-bottom: 8px;
-    }
-    
-    /* Improve date picker for mobile */
-    .stDateInput {
-        width: 100%;
-    }
-    
-    /* Hide Streamlit branding on mobile */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    
-    /* Compact expander for audio */
-    .streamlit-expanderHeader {
-        font-size: 0.9em;
-        padding: 8px;
-    }
-    
-    /* Audio player styling */
-    audio {
-        margin-top: 8px;
-    }
 </style>
 """, unsafe_allow_html=True)
 
+@st.cache_data
+def translate_to_italian(text):
+    """Translate English text to Italian using Google Translate"""
+    try:
+        from google.cloud import translate_v2
+        import google.auth
+        
+        # Try using google-cloud-translate
+        credentials, project = google.auth.default()
+        translate_client = translate_v2.Client(credentials=credentials)
+        result = translate_client.translate_text(text, target_language_code='it')
+        return result['translatedText']
+    except:
+        pass
+    
+    try:
+        # Fallback to googletrans (free, no API key needed)
+        from googletrans import Translator
+        translator = Translator()
+        translation = translator.translate(text, dest_lang='it')
+        return translation.text
+    except Exception as e:
+        return f"[Translation unavailable: {str(e)}]"
+
 # Header
-st.title("📖 Libro di Mormon")
-st.caption("Lettura quotidiana in 365 giorni")
-
-# Initialize translation cache
-if 'translation_cache' not in st.session_state:
-    st.session_state.translation_cache = {}
-
-if 'pending_translation' not in st.session_state:
-    st.session_state.pending_translation = None
-
-# Create a placeholder for translation display
-translation_display = st.empty()
-
-# Check if word needs to be translated
-if st.session_state.pending_translation:
-    word = st.session_state.pending_translation.lower()
-    if word not in st.session_state.translation_cache:
-        try:
-            translation = translate_italian_word(word)
-            st.session_state.translation_cache[word] = translation
-        except Exception as e:
-            st.session_state.translation_cache[word] = f"Error: {str(e)}"
-    
-    # Show the translation
-    with translation_display:
-        st.success(f"**{st.session_state.pending_translation}** = *{st.session_state.translation_cache[word]}*")
-    
-    st.session_state.pending_translation = None
+st.title("📖 Book of Mormon Daily Reader")
+st.caption("Daily reading in 365 days")
 
 # Load verses
 all_verses = load_verses()
@@ -365,7 +160,7 @@ all_verses = load_verses()
 col1, col2 = st.columns([2, 1])
 with col1:
     selected_date = st.date_input(
-        "📅 Seleziona Data",
+        "📅 Select Date",
         value=datetime.now(),
         min_value=datetime(datetime.now().year, 1, 1),
         max_value=datetime(datetime.now().year, 12, 31),
@@ -373,19 +168,17 @@ with col1:
     )
 with col2:
     day_of_year = get_day_of_year(selected_date)
-    st.metric("Giorno", f"{day_of_year}/365", label_visibility="visible")
+    st.metric("Day", f"{day_of_year}/365", label_visibility="visible")
 
 # Progress bar
 progress = day_of_year / 365
-st.progress(progress, text=f"Progresso: {progress*100:.0f}%")
+st.progress(progress, text=f"Progress: {progress*100:.0f}%")
 
 # Dataset status notice
 if len(all_verses) < 100:
-    st.warning("⚠️ Demo Mode: Place book_of_mormon_bilingual.json in the same directory.")
+    st.warning("⚠️ Demo Mode: Place book_of_mormon.json in the same directory.")
 else:
-    verses_with_italian = sum(1 for v in all_verses if v.get('italian', ''))
-    percentage = verses_with_italian / len(all_verses) * 100
-    st.info(f"✅ {len(all_verses)} verses loaded ({percentage:.0f}% have Italian translations)")
+    st.info(f"✅ {len(all_verses)} verses loaded")
 
 # Get today's verses
 todays_verses = get_verses_for_day(day_of_year, all_verses)
@@ -393,49 +186,26 @@ todays_verses = get_verses_for_day(day_of_year, all_verses)
 # Day header
 start_verse = (day_of_year - 1) * VERSES_PER_DAY + 1
 end_verse = min(start_verse + VERSES_PER_DAY - 1, TOTAL_VERSES)
-st.subheader(f"{selected_date.strftime('%d %B %Y')}")
+st.subheader(f"{selected_date.strftime('%B %d, %Y')}")
 st.caption(f"Verses {start_verse}–{end_verse}")
 
 st.divider()
 
 # Display verses
-for idx, verse in enumerate(todays_verses):
+for verse in todays_verses:
     reference = f"{verse['book']} {verse['chapter']}:{verse['verse']}"
-    verse_id = f"verse_{idx}_{verse['chapter']}_{verse['verse']}"
-    
     st.markdown(f"### {reference}")
     
-    # Side-by-side English and Italian with interactive words
-    col_en, col_it = st.columns(2)
+    # English version
+    st.markdown("**English**")
+    st.markdown(f"<div class='verse-text'>{verse['english']}</div>", unsafe_allow_html=True)
     
-    with col_en:
-        st.markdown("**English**")
-        english_interactive = make_text_interactive(verse["english"], verse_id, 'en')
-        st.markdown(f'{english_interactive}', unsafe_allow_html=True)
-    
-    with col_it:
-        st.markdown("**Italiano**")
-        italian_interactive = make_text_interactive(verse.get('italian', ''), verse_id, 'it')
-        st.markdown(f'{italian_interactive}', unsafe_allow_html=True)
-    
-    # Audio player for individual verse
-    if verse.get('italian', ''):
-        if st.button("🔊 Play Italian", key=f"audio_btn_{idx}"):
-            st.session_state[f"play_audio_{idx}"] = True
-        
-        if st.session_state.get(f"play_audio_{idx}"):
-            audio_html = text_to_speech_link(verse['italian'], 'it')
-            st.markdown(audio_html, unsafe_allow_html=True)
+    # Italian translation (cached)
+    st.markdown("**Italiano**")
+    italian_text = translate_to_italian(verse['english'])
+    st.markdown(f"<div class='verse-text'>{italian_text}</div>", unsafe_allow_html=True)
     
     st.divider()
 
 # Footer
-st.divider()
-st.caption(f"📚 Libro di Mormon | Giorno {day_of_year} di 365")
-
-# Handle word translation via URL params
-query_params = st.query_params
-if 'translate_word' in query_params:
-    word = query_params['translate_word']
-    st.session_state.pending_translation = word
-    del query_params['translate_word']
+st.caption(f"📚 Book of Mormon | Day {day_of_year} of 365")
