@@ -1,4 +1,5 @@
 # pip install -r requirements.txt
+altair==5.0.1
 deep-translator
 fuzzywuzzy
 geopandas
