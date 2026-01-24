@@ -23,7 +23,7 @@ scrapy
 selenium
 sentence-transformers
 SpeechRecognition
-streamlit
+streamlit>=1.36.0
 streamlit-aggrid
 thefuzz
 translate
